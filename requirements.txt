@@ -1,0 +1,8 @@
+streamlit
+textblob
+nltk
+language-tool-python
+vadersentiment
+transformers
+torch
+rake-nltk
