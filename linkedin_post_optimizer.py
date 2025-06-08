@@ -1,20 +1,17 @@
 import streamlit as st
 from textblob import TextBlob
 import nltk
-import os
 from nltk.tokenize import sent_tokenize, word_tokenize
+import os
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from rake_nltk import Rake
 
-# 🔽 Ensure NLTK data is downloaded to user directory
-nltk_data_dir = os.path.join(os.path.expanduser("~"), "nltk_data")
-os.makedirs(nltk_data_dir, exist_ok=True)
-nltk.data.path.append(nltk_data_dir)
-nltk.download('punkt', download_dir=nltk_data_dir)
-nltk.download('vader_lexicon', download_dir=nltk_data_dir)
+# 🔽 Download required NLTK resources
+nltk.download('punkt')
+nltk.download('vader_lexicon')
 
-# 🧐 Initialize tools
+# 🧠 Initialize tools
 analyzer = SentimentIntensityAnalyzer()
 
 # 📊 Helper Functions
@@ -176,6 +173,5 @@ if post.strip():
                 st.download_button("📅 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
             except Exception as e:
                 st.error(f"⚠️ Error generating rewrite: {e}")
-
 else:
     st.info("Please enter your LinkedIn post above to begin the analysis.")
