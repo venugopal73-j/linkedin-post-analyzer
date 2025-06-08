@@ -1,7 +1,3 @@
-"""
-💼 LinkedIn Post Optimizer – Fully Working Version for Streamlit Cloud
-"""
-
 import streamlit as st
 from textblob import TextBlob
 import nltk
@@ -147,14 +143,8 @@ if post.strip():
 
     with tab1:
         st.subheader("📈 Summary")
-        if total_score >= 90:
-            st.success(f"Final Quality Score: {total_score}/100")
-        elif total_score >= 75:
-            st.info(f"Final Quality Score: {total_score}/100")
-        else:
-            st.warning(f"Final Quality Score: {total_score}/100")
-
         st.markdown(f"### 🔮 Virality Prediction: {virality}")
+        st.success(f"Final Quality Score: {total_score}/100")
 
     with tab2:
         st.subheader("🔍 Parameter Breakdown")
