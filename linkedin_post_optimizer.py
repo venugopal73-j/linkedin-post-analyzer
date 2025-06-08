@@ -5,21 +5,14 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 import language_tool_python
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from transformers import pipeline
 from rake_nltk import Rake
 
 # Download NLTK resources
 nltk.download('punkt')
 
 # Initialize tools
-tool = language_tool_python.LanguageToolPublicAPI('en-US')
+tool = language_tool_python.LanguageTool('en-US')  # Uses local server now
 analyzer = SentimentIntensityAnalyzer()
-
-# Load summarization model (BART)
-try:
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-except Exception as e:
-    summarizer = None
 
 # Helper Functions
 def flesch_kincaid(text):
@@ -162,17 +155,20 @@ if post.strip():
             st.markdown("#### 💬 Add a Call-to-Action:")
             st.code("What are your thoughts on this? Let me know in the comments!")
 
-        if summarizer:
-            if st.button("🧠 Generate AI-Optimized Version"):
-                try:
-                    optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
-                    st.markdown("#### ✨ Optimized Version:")
-                    st.markdown(optimized)
-                    st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
-                except Exception as e:
-                    st.error("Error generating rewrite.")
-        else:
-            st.info("AI Rewriter unavailable. Install transformers and torch to enable it.")
+        @st.cache_resource
+        def get_summarizer():
+            from transformers import pipeline
+            return pipeline("summarization", model="facebook/bart-large-cnn")
+
+        if st.button("🧠 Generate AI-Optimized Version"):
+            try:
+                summarizer = get_summarizer()
+                optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
+                st.markdown("#### ✨ Optimized Version:")
+                st.markdown(optimized)
+                st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+            except Exception as e:
+                st.error(f"Error generating rewrite: {e}")
 
 else:
     st.info("Please enter your LinkedIn post above to begin the analysis.")
