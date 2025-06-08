@@ -5,16 +5,20 @@
 import streamlit as st
 from textblob import TextBlob
 import nltk
+import os
 from nltk.tokenize import sent_tokenize, word_tokenize
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from rake_nltk import Rake
 
-# 🔽 Download required NLTK resources at startup
-nltk.download('punkt')           # Fixes 'punkt' or 'punkt_tab' error
-nltk.download('vader_lexicon')   # For sentiment analysis
+# 🔽 Ensure NLTK data is downloaded to user directory
+nltk_data_dir = os.path.join(os.path.expanduser("~"), "nltk_data")
+os.makedirs(nltk_data_dir, exist_ok=True)
+nltk.data.path.append(nltk_data_dir)
+nltk.download('punkt', download_dir=nltk_data_dir)
+nltk.download('vader_lexicon', download_dir=nltk_data_dir)
 
-# 🧠 Initialize tools
+# 🧐 Initialize tools
 analyzer = SentimentIntensityAnalyzer()
 
 # 📊 Helper Functions
@@ -179,7 +183,7 @@ if post.strip():
                 optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
                 st.markdown("#### ✨ Optimized Version:")
                 st.markdown(optimized)
-                st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+                st.download_button("📅 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
             except Exception as e:
                 st.error(f"⚠️ Error generating rewrite: {e}")
 
