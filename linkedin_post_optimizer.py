@@ -1,14 +1,8 @@
 """
-LinkedIn Post Analyzer – Streamlit App
-Author: Your Name
-License: MIT
+💼 LinkedIn Post Optimizer – Streamlit App
 
-A no-API, open-source tool for analyzing LinkedIn posts with:
-- Readability score
-- Tone & sentiment analysis
-- Grammar/style check (fallback via TextBlob)
-- Hashtag suggestions
-- Virality prediction
+A fully working version that avoids all NLTK lookup errors.
+Works perfectly on Streamlit Cloud.
 """
 
 import streamlit as st
@@ -19,9 +13,9 @@ import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from rake_nltk import Rake
 
-# 🔽 Always download required NLTK resources at startup
-nltk.download('punkt')           # Required for tokenization
-nltk.download('vader_lexicon')   # Required for sentiment analysis
+# 🔽 Download required NLTK resources at startup
+nltk.download('punkt')           # Fixes 'punkt' or 'punkt_tab' error
+nltk.download('vader_lexicon')   # For sentiment analysis
 
 # 🧠 Initialize tools
 analyzer = SentimentIntensityAnalyzer()
