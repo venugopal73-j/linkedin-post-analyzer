@@ -1,17 +1,22 @@
+"""
+💼 LinkedIn Post Optimizer – Fully Working Version for Streamlit Cloud
+"""
+
 import streamlit as st
 from textblob import TextBlob
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
-import os
+from nltk.corpus import stopwords
+from collections import Counter
 import re
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from rake_nltk import Rake
 
-# 🔽 Download required NLTK resources
-nltk.download('punkt')
-nltk.download('vader_lexicon')
+# 🔽 Download required NLTK resources at startup
+nltk.download('punkt')           # Fixes 'punkt' or 'punkt_tab' error
+nltk.download('vader_lexicon') # For sentiment analysis
+nltk.download('stopwords')     # For keyword extraction
 
 # 🧠 Initialize tools
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 analyzer = SentimentIntensityAnalyzer()
 
 # 📊 Helper Functions
@@ -34,10 +39,10 @@ def spelling_check(text):
         blob = TextBlob(text)
         corrected = str(blob.correct())
         if corrected != text:
-            return 3
+            return 3  # some issues found
         return 0
     except:
-        return 2
+        return 2  # unknown error
 
 def detect_hashtags_mentions(text):
     hashtags = re.findall(r'#\w+', text)
@@ -56,11 +61,18 @@ def detect_emotional_appeal(text):
     count = sum(1 for word in positive_words if word in text.lower())
     return min(10, count)
 
-def generate_hashtags(post):
-    r = Rake()
-    r.extract_keywords_from_text(post)
-    phrases = r.get_ranked_phrases()
-    return ['#' + p.replace(' ', '') for p in phrases[:3]]
+def generate_hashtags(post, top_n=3):
+    # Tokenize and clean text
+    words = nltk.word_tokenize(post.lower())
+    stop_words = set(stopwords.words('english'))
+    filtered_words = [word for word in words if word.isalpha() and word not in stop_words]
+
+    # Count word frequency
+    word_counts = Counter(filtered_words)
+    common_words = word_counts.most_common(top_n)
+
+    # Generate hashtags
+    return ['#' + word for word, _ in common_words]
 
 def calculate_score(post):
     readability = flesch_kincaid(post)
@@ -140,8 +152,14 @@ if post.strip():
 
     with tab1:
         st.subheader("📈 Summary")
+        if total_score >= 90:
+            st.success(f"Final Quality Score: {total_score}/100")
+        elif total_score >= 75:
+            st.info(f"Final Quality Score: {total_score}/100")
+        else:
+            st.warning(f"Final Quality Score: {total_score}/100")
+
         st.markdown(f"### 🔮 Virality Prediction: {virality}")
-        st.success(f"Final Quality Score: {total_score}/100")
 
     with tab2:
         st.subheader("🔍 Parameter Breakdown")
@@ -170,8 +188,9 @@ if post.strip():
                 optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
                 st.markdown("#### ✨ Optimized Version:")
                 st.markdown(optimized)
-                st.download_button("📅 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+                st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
             except Exception as e:
                 st.error(f"⚠️ Error generating rewrite: {e}")
+
 else:
     st.info("Please enter your LinkedIn post above to begin the analysis.")
