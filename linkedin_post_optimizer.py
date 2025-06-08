@@ -2,7 +2,6 @@ import streamlit as st
 from textblob import TextBlob
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
-import language_tool_python
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from rake_nltk import Rake
@@ -11,7 +10,6 @@ from rake_nltk import Rake
 nltk.download('punkt')
 
 # Initialize tools
-tool = language_tool_python.LanguageTool('en-US')  # Uses local server now
 analyzer = SentimentIntensityAnalyzer()
 
 # Helper Functions
@@ -29,9 +27,16 @@ def analyze_tone_vader(text):
     vs = analyzer.polarity_scores(text)
     return vs['compound']
 
-def grammar_check(text):
-    matches = tool.check(text)
-    return len(matches)
+def spelling_check(text):
+    """Basic spelling check using TextBlob"""
+    try:
+        blob = TextBlob(text)
+        corrected = str(blob.correct())
+        if corrected != text:
+            return 3  # some issues found
+        return 0
+    except:
+        return 2  # unknown error
 
 def detect_hashtags_mentions(text):
     hashtags = re.findall(r'#\w+', text)
@@ -59,7 +64,7 @@ def generate_hashtags(post):
 def calculate_score(post):
     readability = flesch_kincaid(post)
     tone = analyze_tone_vader(post)
-    grammar_errors = grammar_check(post)
+    spelling_issues = spelling_check(post)
     word_count = len(word_tokenize(post))
     cta = detect_call_to_action(post)
     hashtags, mentions = detect_hashtags_mentions(post)
@@ -67,7 +72,7 @@ def calculate_score(post):
     emotional_appeal = detect_emotional_appeal(post)
 
     # Normalize scores
-    grammar_score = max(0, 10 - grammar_errors)
+    spelling_score = max(0, 10 - spelling_issues)
     length_score = 10 if 300 <= word_count <= 1000 else max(0, 10 - abs(word_count - 650) / 100)
 
     weights = {
@@ -85,7 +90,7 @@ def calculate_score(post):
     weighted_score = (
         (readability / 100 * weights["readability"]) +
         ((tone + 1) / 2 * 10 * weights["tone"] / 10) +
-        (grammar_score * weights["grammar"] / 10) +
+        (spelling_score * weights["grammar"] / 10) +
         (length_score * weights["length"] / 10) +
         (10 * weights["cta"] / 10 if cta else 0) +
         (min(3, hashtags) / 3 * 10 * weights["hashtags"] / 10) +
@@ -97,7 +102,7 @@ def calculate_score(post):
     return round(weighted_score), {
         "Readability": readability,
         "Tone & Sentiment": round((tone + 1) / 2 * 10),
-        "Grammar & Style": grammar_score,
+        "Grammar & Style": spelling_score,
         "Length & Structure": length_score,
         "Call-to-Action": 10 if cta else 0,
         "Hashtags": min(10, hashtags * 3.3),

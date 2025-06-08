@@ -1,6 +1,7 @@
 streamlit
 textblob
 nltk
-language-tool-python[lserver]
 vadersentiment
 rake-nltk
+transformers
+torch
