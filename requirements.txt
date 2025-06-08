@@ -2,6 +2,6 @@ streamlit
 textblob
 nltk
 vadersentiment
-rake-nltk
+rake-nltk==1.0.4
 transformers
 torch
