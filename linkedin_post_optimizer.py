@@ -1,3 +1,16 @@
+"""
+LinkedIn Post Analyzer – Streamlit App
+Author: Your Name
+License: MIT
+
+A no-API, open-source tool for analyzing LinkedIn posts with:
+- Readability score
+- Tone & sentiment analysis
+- Grammar/style check (fallback via TextBlob)
+- Hashtag suggestions
+- Virality prediction
+"""
+
 import streamlit as st
 from textblob import TextBlob
 import nltk
@@ -6,14 +19,14 @@ import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from rake_nltk import Rake
 
-# Ensure required NLTK resources are downloaded
-nltk.download('punkt')           # Fixes 'punkt_tab' error
-nltk.download('vader_lexicon')   # For sentiment analysis
+# 🔽 Always download required NLTK resources at startup
+nltk.download('punkt')           # Required for tokenization
+nltk.download('vader_lexicon')   # Required for sentiment analysis
 
-# Initialize tools
+# 🧠 Initialize tools
 analyzer = SentimentIntensityAnalyzer()
 
-# Helper Functions
+# 📊 Helper Functions
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
@@ -122,11 +135,15 @@ def predict_virality(score):
     else:
         return "📉 Low engagement unless boosted"
 
-# UI
-st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
+# 🖥️ UI
+st.set_page_config(page_title="💼 LinkedIn Post Optimizer", layout="centered")
 st.title("💼 LinkedIn Post Optimizer")
 
-post = st.text_area("📝 Paste or write your LinkedIn post below...", height=300, placeholder="Type or paste your LinkedIn post here...")
+post = st.text_area(
+    "📝 Paste or write your LinkedIn post below...",
+    height=300,
+    placeholder="Type or paste your LinkedIn post here..."
+)
 
 if post.strip():
     total_score, details = calculate_score(post)
