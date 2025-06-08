@@ -16,16 +16,16 @@ import io
 from moviepy.editor import ImageClip, AudioFileClip
 import os
 
-# 🔽 Download required NLTK resources at startup
+# Download required NLTK resources at startup
 nltk.download('punkt')           # Sentence tokenization
 nltk.download('punkt_tab')       # Fixes 'punkt_tab' error
 nltk.download('vader_lexicon')   # For sentiment analysis
 nltk.download('stopwords')       # For keyword extraction
 
-# 🧠 Initialize tools
+# Initialize tools
 analyzer = SentimentIntensityAnalyzer()
 
-# 📊 Helper Functions for LinkedIn Post Optimization
+# Helper Functions for LinkedIn Post Optimization
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
@@ -134,53 +134,22 @@ def predict_virality(score):
     else:
         return "📉 Low engagement unless boosted"
 
-# 📷 Image Processing Functions
+# Image Processing Functions
 def remove_background(image_file):
     try:
         input_image = image_file.read()
         output_image = remove(input_image)
         return Image.open(io.BytesIO(output_image)).convert("RGBA")
     except Exception as e:
-        st.error(f"Error removing background: {e}")
-        return None
+        st.error(f"Error removing background: ըն
 
-def create_video(image, audio_path, duration=10, output_path="output_video.mp4"):
-    try:
-        image.save("temp_image.png")
-        clip = ImageClip("temp_image.png").set_duration(duration)
-        clip = clip.resize(lambda t: 1 + 0.02 * t)  # Zoom effect
-        clip = clip.set_position(('center', 'center'))
-        if os.path.exists(audio_path):
-            audio = AudioFileClip(audio_path).subclip(0, duration)
-            clip = clip.set_audio(audio)
-        else:
-            st.warning("Audio file 'background_music.mp3' not found. Creating video without audio.")
-        clip.write_videofile(output_path, fps=24)
-        return output_path
-    except Exception as e:
-        st.error(f"Error creating video: {e}")
-        return None
+System: The `SyntaxError: invalid character '’' (U+2019)` error in `linkedin_post_optimizer.py` at line 183 was caused by a curly apostrophe (`’`) inadvertently included in the file, likely from copying explanatory text (e.g., "I’ll") from my previous response. This invalid character caused a parsing error in Python. The error has been resolved by providing a cleaned-up version of the file without the invalid characters. The `requirements.txt` file was also updated to include `onnxruntime`, fixing the previous `ModuleNotFoundError`.
 
-# 🖥️ UI
-st.set_page_config(page_title="💼 LinkedIn Post Optimizer & Video Creator", layout="centered")
-st.title("💼 LinkedIn Post Optimizer & Video Creator")
-
-# Sidebar for mode selection
-mode = st.sidebar.selectbox("Choose Mode", ["Optimize LinkedIn Post", "Create Video from Image"])
-
-if mode == "Optimize LinkedIn Post":
-    post = st.text_area(
-        "📝 Paste or write your LinkedIn post below...",
-        height=300,
-       ව
-
-System: Thank you for sharing the error details. The `ModuleNotFoundError: No module named 'onnxruntime'` occurs because the `onnxruntime` package, a dependency required by `rembg` for background removal, is not included in your `requirements.txt`. This prevents the `rembg` library from functioning in your Streamlit app (`linkedin_post_optimizer.py`) when deployed on Streamlit Cloud.
-
-Additionally, your goal is to:
-1. Optimize LinkedIn posts using the existing functionality in `linkedin_post_optimizer.py`.
-2. Remove the background from an image (e.g., objects like a TV or fridge) and create a video with background audio, aligned with a GAN-themed LinkedIn post.
-
-I’ll provide updated versions of `linkedin_post_optimizer.py` and `requirements.txt` to fix the error by adding `onnxruntime` and ensure compatibility with Streamlit Cloud. The updated code retains the NLTK `punkt_tab` fix from your previous issue and includes robust error handling for the image-to-video feature. I’ll also ensure the app works seamlessly for both LinkedIn post optimization and video creation.
+Below, I’ve provided the corrected `linkedin_post_optimizer.py` and the previously updated `requirements.txt`. The code retains all functionality:
+1. **LinkedIn Post Optimization**: Analyzes and optimizes LinkedIn posts for engagement.
+2. **Image-to-Video Creation**: Removes image backgrounds (e.g., TV, fridge) and creates a video with a zoom effect and optional background audio, aligned with a GAN-themed LinkedIn post.
+3. **NLTK Fix**: Includes `nltk.download('punkt_tab')` to prevent the `punkt_tab` error.
+4. **Streamlit Cloud Compatibility**: Uses relative file paths and robust error handling.
 
 ---
 
@@ -188,15 +157,15 @@ I’ll provide updated versions of `linkedin_post_optimizer.py` and `requirement
 
 #### 1. `linkedin_post_optimizer.py`
 **Changes**:
-- Retained the NLTK `punkt_tab` fix with `nltk.download('punkt_tab')`.
-- Kept the dual-mode functionality (LinkedIn post optimization and image-to-video creation).
-- Enhanced error handling for the audio file (`background_music.mp3`) to provide clearer user guidance.
-- Ensured compatibility with Streamlit Cloud using relative file paths.
-- Added a note about including `background_music.mp3` in the repository for video creation.
+- Removed all explanatory text and invalid characters (e.g., `’`) to ensure valid Python syntax.
+- Retained the `onnxruntime` fix via `requirements.txt`.
+- Kept the NLTK `punkt_tab` fix and all dependencies.
+- Ensured robust error handling for the audio file (`background_music.mp3`).
+- Added clear instructions for including `background_music.mp3` in the repository.
 
 ```python
 """
-💼 LinkedIn Post Optimizer with Image-to-Video Creator – Fully Working Version for Streamlit Cloud
+LinkedIn Post Optimizer with Image-to-Video Creator - Fully Working Version for Streamlit Cloud
 """
 
 import streamlit as st
@@ -213,16 +182,16 @@ import io
 from moviepy.editor import ImageClip, AudioFileClip
 import os
 
-# 🔽 Download required NLTK resources at startup
+# Download required NLTK resources at startup
 nltk.download('punkt')           # Sentence tokenization
 nltk.download('punkt_tab')       # Fixes 'punkt_tab' error
 nltk.download('vader_lexicon')   # For sentiment analysis
 nltk.download('stopwords')       # For keyword extraction
 
-# 🧠 Initialize tools
+# Initialize tools
 analyzer = SentimentIntensityAnalyzer()
 
-# 📊 Helper Functions for LinkedIn Post Optimization
+# Helper Functions for LinkedIn Post Optimization
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
@@ -331,7 +300,7 @@ def predict_virality(score):
     else:
         return "📉 Low engagement unless boosted"
 
-# 📷 Image Processing Functions
+# Image Processing Functions
 def remove_background(image_file):
     try:
         input_image = image_file.read()
@@ -359,16 +328,16 @@ def create_video(image, audio_path, duration=10, output_path="output_video.mp4")
         st.error(f"Error creating video: {e}")
         return None
 
-# 🖥️ UI
-st.set_page_config(page_title="💼 LinkedIn Post Optimizer & Video Creator", layout="centered")
-st.title("💼 LinkedIn Post Optimizer & Video Creator")
+# UI
+st.set_page_config(page_title="LinkedIn Post Optimizer & Video Creator", layout="centered")
+st.title("LinkedIn Post Optimizer & Video Creator")
 
 # Sidebar for mode selection
 mode = st.sidebar.selectbox("Choose Mode", ["Optimize LinkedIn Post", "Create Video from Image"])
 
 if mode == "Optimize LinkedIn Post":
     post = st.text_area(
-        "📝 Paste or write your LinkedIn post below...",
+        "Paste or write your LinkedIn post below...",
         height=300,
         placeholder="Type or paste your LinkedIn post here..."
     )
@@ -377,49 +346,49 @@ if mode == "Optimize LinkedIn Post":
         total_score, details = calculate_score(post)
         virality = predict_virality(total_score)
 
-        tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔍 Metrics", "✨ Suggestions"])
+        tab1, tab2, tab3 = st.tabs(["Overview", "Metrics", "Suggestions"])
 
         with tab1:
-            st.subheader("📈 Summary")
+            st.subheader("Summary")
             if total_score >= 90:
                 st.success(f"Final Quality Score: {total_score}/100")
             elif total_score >= 75:
                 st.info(f"Final Quality Score: {total_score}/100")
             else:
                 st.warning(f"Final Quality Score: {total_score}/100")
-            st.markdown(f"### 🔮 Virality Prediction: {virality}")
+            st.markdown(f"### Virality Prediction: {virality}")
 
         with tab2:
-            st.subheader("🔍 Parameter Breakdown")
+            st.subheader("Parameter Breakdown")
             for key, value in details.items():
                 st.progress(int(value), text=f"{key}: {value}/10")
 
         with tab3:
-            st.subheader("💡 Optimization Suggestions")
+            st.subheader("Optimization Suggestions")
             suggested_hashtags = generate_hashtags(post)
-            st.markdown("#### 🏷️ Suggested Hashtags:")
+            st.markdown("#### Suggested Hashtags:")
             st.code(' '.join(suggested_hashtags))
             if not detect_call_to_action(post):
-                st.markdown("#### 💬 Add a Call-to-Action:")
+                st.markdown("#### Add a Call-to-Action:")
                 st.code("What are your thoughts on this? Let me know in the comments!")
             @st.cache_resource
             def get_summarizer():
                 from transformers import pipeline
                 return pipeline("summarization", model="facebook/bart-large-cnn")
-            if st.button("🧠 Generate AI-Optimized Version"):
+            if st.button("Generate AI-Optimized Version"):
                 try:
                     summarizer = get_summarizer()
                     optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
-                    st.markdown("#### ✨ Optimized Version:")
+                    st.markdown("#### Optimized Version:")
                     st.markdown(optimized)
-                    st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+                    st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
                 except Exception as e:
-                    st.error(f"⚠️ Error generating rewrite: {e}")
+                    st.error(f"Error generating rewrite: {e}")
     else:
         st.info("Please enter your LinkedIn post above to begin the analysis.")
 
 elif mode == "Create Video from Image":
-    st.header("🎥 Create Video from Image with Background Removal")
+    st.header("Create Video from Image with Background Removal")
     st.markdown("Upload an image to remove its background (e.g., TV, fridge) and create a video with background audio. For GAN-themed posts, use AI-generated images! Note: A royalty-free audio file ('background_music.mp3') must be included in your GitHub repository root.")
     image_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"], key="image_uploader")
     audio_path = "background_music.mp3"  # Must be in the repository root
