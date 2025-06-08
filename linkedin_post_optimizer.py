@@ -1,8 +1,8 @@
 """
-💼 LinkedIn Post Optimizer – Streamlit App
+💼 LinkedIn Post Optimizer – Fully Working Version
 
-A fully working version that avoids all NLTK lookup errors.
-Works perfectly on Streamlit Cloud.
+✅ Designed for Streamlit Cloud
+✅ Fixes all NLTK lookup errors
 """
 
 import streamlit as st
@@ -97,27 +97,17 @@ def calculate_score(post):
 
     weighted_score = (
         (readability / 100 * weights["readability"]) +
-        ((tone + 1) / 2 * 10 * weights["tone"] / 10) +
+        ((analyzer.polarity_scores(text=post)['compound'] + 1) / 2 * 10 * weights["tone"] / 10) +
         (spelling_score * weights["grammar"] / 10) +
         (length_score * weights["length"] / 10) +
-        (10 * weights["cta"] / 10 if cta else 0) +
-        (min(3, hashtags) / 3 * 10 * weights["hashtags"] / 10) +
-        (min(2, mentions) / 2 * 10 * weights["mentions"] / 10) +
-        (emotional_appeal * weights["emotional"] / 10) +
-        (min(5, emojis) / 5 * 10 * weights["emojis"] / 10)
+        (10 * weights["cta"] / 10 if detect_call_to_action(post) else 0) +
+        (min(3, len(re.findall(r'#\w+', post))) * 3.3) +
+        (min(2, len(re.findall(r'@\w+', post))) * 2.5) +
+        (min(10, sum(1 for word in ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success'] if word in post.lower()))) +
+        (min(5, len(re.findall(r'[^\w\s,.!?]', post)) * 1.0))
     )
 
-    return round(weighted_score), {
-        "Readability": readability,
-        "Tone & Sentiment": round((tone + 1) / 2 * 10),
-        "Grammar & Style": spelling_score,
-        "Length & Structure": length_score,
-        "Call-to-Action": 10 if cta else 0,
-        "Hashtags": min(10, hashtags * 3.3),
-        "Mentions": min(5, mentions * 2.5),
-        "Emotional Appeal": emotional_appeal,
-        "Engagement Hooks": min(5, emojis * 1.0)
-    }
+    return round(weighted_score)
 
 def predict_virality(score):
     if score >= 90:
@@ -140,10 +130,10 @@ post = st.text_area(
 )
 
 if post.strip():
-    total_score, details = calculate_score(post)
+    total_score = calculate_score(post)
     virality = predict_virality(total_score)
 
-    tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔍 Metrics", "✨ Suggestions"])
+    tab1, tab2 = st.tabs(["📊 Overview", "✨ Suggestions"])
 
     with tab1:
         st.subheader("📈 Summary")
@@ -157,11 +147,6 @@ if post.strip():
         st.markdown(f"### 🔮 Virality Prediction: {virality}")
 
     with tab2:
-        st.subheader("🔍 Parameter Breakdown")
-        for key, value in details.items():
-            st.progress(int(value), text=f"{key}: {value}/10")
-
-    with tab3:
         st.subheader("💡 Optimization Suggestions")
 
         suggested_hashtags = generate_hashtags(post)
@@ -185,7 +170,7 @@ if post.strip():
                 st.markdown(optimized)
                 st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
             except Exception as e:
-                st.error(f"Error generating rewrite: {e}")
+                st.error(f"⚠️ Error generating rewrite: {e}")
 
 else:
     st.info("Please enter your LinkedIn post above to begin the analysis.")
