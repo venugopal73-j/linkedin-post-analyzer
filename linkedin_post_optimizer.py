@@ -1,5 +1,5 @@
 """
-💼 LinkedIn Post Optimizer – Fully Working Version for Streamlit Cloud
+💼 LinkedIn Post Optimizer with Image-to-Video Creator – Fully Working Version for Streamlit Cloud
 """
 
 import streamlit as st
@@ -9,17 +9,23 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 import re
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from rembg import remove
+from PIL import Image
+import io
+from moviepy.editor import ImageClip, AudioFileClip
+import os
 
 # 🔽 Download required NLTK resources at startup
-nltk.download('punkt')           # Fixes 'punkt' or 'punkt_tab' error
-nltk.download('vader_lexicon') # For sentiment analysis
-nltk.download('stopwords')     # For keyword extraction
+nltk.download('punkt')           # Sentence tokenization
+nltk.download('punkt_tab')       # Fixes 'punkt_tab' error
+nltk.download('vader_lexicon')   # For sentiment analysis
+nltk.download('stopwords')       # For keyword extraction
 
 # 🧠 Initialize tools
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 analyzer = SentimentIntensityAnalyzer()
 
-# 📊 Helper Functions
+# 📊 Helper Functions for LinkedIn Post Optimization
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
@@ -39,10 +45,10 @@ def spelling_check(text):
         blob = TextBlob(text)
         corrected = str(blob.correct())
         if corrected != text:
-            return 3  # some issues found
+            return 3  # Some issues found
         return 0
     except:
-        return 2  # unknown error
+        return 2  # Unknown error
 
 def detect_hashtags_mentions(text):
     hashtags = re.findall(r'#\w+', text)
@@ -62,16 +68,11 @@ def detect_emotional_appeal(text):
     return min(10, count)
 
 def generate_hashtags(post, top_n=3):
-    # Tokenize and clean text
     words = nltk.word_tokenize(post.lower())
     stop_words = set(stopwords.words('english'))
     filtered_words = [word for word in words if word.isalpha() and word not in stop_words]
-
-    # Count word frequency
     word_counts = Counter(filtered_words)
     common_words = word_counts.most_common(top_n)
-
-    # Generate hashtags
     return ['#' + word for word, _ in common_words]
 
 def calculate_score(post):
@@ -84,7 +85,6 @@ def calculate_score(post):
     emojis = detect_emojis(post)
     emotional_appeal = detect_emotional_appeal(post)
 
-    # Normalize scores
     spelling_score = max(0, 10 - spelling_issues)
     length_score = 10 if 300 <= word_count <= 1000 else max(0, 10 - abs(word_count - 650) / 100)
 
@@ -134,63 +134,116 @@ def predict_virality(score):
     else:
         return "📉 Low engagement unless boosted"
 
+# 📷 Image Processing Functions
+def remove_background(image_file):
+    try:
+        input_image = image_file.read()
+        output_image = remove(input_image)
+        return Image.open(io.BytesIO(output_image)).convert("RGBA")
+    except Exception as e:
+        st.error(f"Error removing background: {e}")
+        return None
+
+def create_video(image, audio_path, duration=10, output_path="output_video.mp4"):
+    try:
+        image.save("temp_image.png")
+        clip = ImageClip("temp_image.png").set_duration(duration)
+        clip = clip.resize(lambda t: 1 + 0.02 * t)  # Zoom effect
+        clip = clip.set_position(('center', 'center'))
+        if os.path.exists(audio_path):
+            audio = AudioFileClip(audio_path).subclip(0, duration)
+            clip = clip.set_audio(audio)
+        clip.write_videofile(output_path, fps=24)
+        return output_path
+    except Exception as e:
+        st.error(f"Error creating video: {e}")
+        return None
+
 # 🖥️ UI
-st.set_page_config(page_title="💼 LinkedIn Post Optimizer", layout="centered")
-st.title("💼 LinkedIn Post Optimizer")
+st.set_page_config(page_title="💼 LinkedIn Post Optimizer & Video Creator", layout="centered")
+st.title("💼 LinkedIn Post Optimizer & Video Creator")
 
-post = st.text_area(
-    "📝 Paste or write your LinkedIn post below...",
-    height=300,
-    placeholder="Type or paste your LinkedIn post here..."
-)
+# Sidebar for mode selection
+mode = st.sidebar.selectbox("Choose Mode", ["Optimize LinkedIn Post", "Create Video from Image"])
 
-if post.strip():
-    total_score, details = calculate_score(post)
-    virality = predict_virality(total_score)
+if mode == "Optimize LinkedIn Post":
+    post = st.text_area(
+        "📝 Paste or write your LinkedIn post below...",
+        height=300,
+        placeholder="Type or paste your LinkedIn post here..."
+    )
 
-    tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔍 Metrics", "✨ Suggestions"])
+    if post.strip():
+        total_score, details = calculate_score(post)
+        virality = predict_virality(total_score)
 
-    with tab1:
-        st.subheader("📈 Summary")
-        if total_score >= 90:
-            st.success(f"Final Quality Score: {total_score}/100")
-        elif total_score >= 75:
-            st.info(f"Final Quality Score: {total_score}/100")
-        else:
-            st.warning(f"Final Quality Score: {total_score}/100")
+        tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔍 Metrics", "✨ Suggestions"])
 
-        st.markdown(f"### 🔮 Virality Prediction: {virality}")
+        with tab1:
+            st.subheader("📈 Summary")
+            if total_score >= 90:
+                st.success(f"Final Quality Score: {total_score}/100")
+            elif total_score >= 75:
+                st.info(f"Final Quality Score: {total_score}/100")
+            else:
+                st.warning(f"Final Quality Score: {total_score}/100")
+            st.markdown(f"### 🔮 Virality Prediction: {virality}")
 
-    with tab2:
-        st.subheader("🔍 Parameter Breakdown")
-        for key, value in details.items():
-            st.progress(int(value), text=f"{key}: {value}/10")
+        with tab2:
+            st.subheader("🔍 Parameter Breakdown")
+            for key, value in details.items():
+                st.progress(int(value), text=f"{key}: {value}/10")
 
-    with tab3:
-        st.subheader("💡 Optimization Suggestions")
+        with tab3:
+            st.subheader("💡 Optimization Suggestions")
+            suggested_hashtags = generate_hashtags(post)
+            st.markdown("#### 🏷️ Suggested Hashtags:")
+            st.code(' '.join(suggested_hashtags))
+            if not detect_call_to_action(post):
+                st.markdown("#### 💬 Add a Call-to-Action:")
+                st.code("What are your thoughts on this? Let me know in the comments!")
+            @st.cache_resource
+            def get_summarizer():
+                from transformers import pipeline
+                return pipeline("summarization", model="facebook/bart-large-cnn")
+            if st.button("🧠 Generate AI-Optimized Version"):
+                try:
+                    summarizer = get_summarizer()
+                    optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
+                    st.markdown("#### ✨ Optimized Version:")
+                    st.markdown(optimized)
+                    st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+                except Exception as e:
+                    st.error(f"⚠️ Error generating rewrite: {e}")
+    else:
+        st.info("Please enter your LinkedIn post above to begin the analysis.")
 
-        suggested_hashtags = generate_hashtags(post)
-        st.markdown("#### 🏷️ Suggested Hashtags:")
-        st.code(' '.join(suggested_hashtags))
+elif mode == "Create Video from Image":
+    st.header("🎥 Create Video from Image with Background Removal")
+    st.markdown("Upload an image to remove its background (e.g., TV, fridge) and create a video with background audio. For GAN-themed posts, use AI-generated images! Note: A royalty-free audio file (e.g., 'background_music.mp3') must be available in the app’s directory.")
+    image_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"], key="image_uploader")
+    audio_path = "background_music.mp3"  # Must be provided in the app’s directory
+    video_duration = st.slider("Video Duration (seconds)", 5, 30, 10)
 
-        if not detect_call_to_action(post):
-            st.markdown("#### 💬 Add a Call-to-Action:")
-            st.code("What are your thoughts on this? Let me know in the comments!")
+    if image_file is not None:
+        st.image(image_file, caption="Original Image", use_column_width=True)
+        with st.spinner("Removing background..."):
+            result_image = remove_background(image_file)
+            if result_image:
+                st.image(result_image, caption="Image with Background Removed", use_column_width=True)
+                with st.spinner("Creating video..."):
+                    video_path = create_video(result_image, audio_path, duration=video_duration)
+                    if video_path and os.path.exists(video_path):
+                        st.video(video_path)
+                        with open(video_path, "rb") as file:
+                            st.download_button("Download Video", file, file_name="output_video.mp4")
+                        st.success("Video created! Download and share on LinkedIn to showcase GAN capabilities.")
+                    else:
+                        st.error("Failed to create video. Ensure 'background_music.mp3' is available in the app’s directory.")
+            else:
+                st.error("Failed to remove background. Try a different image.")
 
-        @st.cache_resource
-        def get_summarizer():
-            from transformers import pipeline
-            return pipeline("summarization", model="facebook/bart-large-cnn")
-
-        if st.button("🧠 Generate AI-Optimized Version"):
-            try:
-                summarizer = get_summarizer()
-                optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
-                st.markdown("#### ✨ Optimized Version:")
-                st.markdown(optimized)
-                st.download_button("📥 Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
-            except Exception as e:
-                st.error(f"⚠️ Error generating rewrite: {e}")
-
-else:
-    st.info("Please enter your LinkedIn post above to begin the analysis.")
+# Cleanup temporary files
+for temp_file in ["temp_image.png", "output_video.mp4"]:
+    if os.path.exists(temp_file):
+        os.remove(temp_file)

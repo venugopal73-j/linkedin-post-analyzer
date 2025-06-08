@@ -4,3 +4,7 @@ nltk
 vadersentiment
 transformers
 torch
+rembg
+moviepy
+pillow
+sentence-transformers
