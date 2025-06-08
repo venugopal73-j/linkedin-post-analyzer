@@ -7,8 +7,8 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from rake_nltk import Rake
 
 # Ensure required NLTK resources are downloaded
-nltk.download('punkt')           # Required for tokenization
-nltk.download('vader_lexicon')   # Required for sentiment analysis
+nltk.download('punkt')           # Fixes 'punkt_tab' error
+nltk.download('vader_lexicon')   # For sentiment analysis
 
 # Initialize tools
 analyzer = SentimentIntensityAnalyzer()
