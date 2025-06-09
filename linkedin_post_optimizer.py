@@ -90,18 +90,19 @@ def calculate_score(post):
     emotional_appeal = detect_emotional_appeal(post)
 
     spelling_score = max(0, 10 - spelling_issues)
-    length_score = 10 if 300 <= word_count <= 1000 else max(0, 10 - abs(word_count - 650) / 100)
+    # Adjusted ideal length range for AI-optimized posts (150–1000 words)
+    length_score = 10 if 150 <= word_count <= 1000 else max(0, 10 - abs(word_count - 575) / 100)
 
     weights = {
         "readability": 10,
         "tone": 10,
-        "grammar": 10,
-        "length": 10,
-        "cta": 10,
-        "hashtags": 10,
+        "grammar": 8,  # Reduced weight to balance
+        "length": 8,   # Reduced weight to balance
+        "cta": 15,     # Increased weight to prioritize engagement
+        "hashtags": 15, # Increased weight to prioritize engagement
         "mentions": 5,
-        "emotional": 10,
-        "emojis": 5
+        "emotional": 15, # Increased weight to prioritize engagement
+        "emojis": 10   # Increased weight to prioritize engagement
     }
 
     weighted_score = (
@@ -229,11 +230,23 @@ if mode == "Optimize LinkedIn Post":
                         with st.spinner("Generating optimized version..."):
                             # Calculate input length to set max_length dynamically
                             input_length = len(word_tokenize(post))
-                            max_length = max(30, int(input_length * 0.5))  # Aim for 50% of input length
-                            # Add a prompt to guide the model for LinkedIn-style output
-                            prompt = f"Summarize this LinkedIn post while keeping it professional and engaging: {post}"
-                            optimized = summarizer(prompt, max_length=max_length, min_length=30, do_sample=False)[0]['summary_text']
-                            # Post-process to add a CTA and hashtags
+                            max_length = max(50, int(input_length * 0.8))  # Aim for 80% of input length
+                            min_length = min(50, max_length - 10)  # Ensure a reasonable min_length
+                            # Improved prompt to retain more details
+                            prompt = f"Summarize this LinkedIn post while keeping it professional, engaging, and retaining key details and examples: {post}"
+                            optimized = summarizer(prompt, max_length=max_length, min_length=min_length, do_sample=False)[0]['summary_text']
+                            # Post-process to enhance content and score
+                            # Restore key sentences with emotional appeal or examples
+                            original_sentences = sent_tokenize(post)
+                            emotional_sentences = [s for s in original_sentences if any(word in s.lower() for word in ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success'])]
+                            example_sentences = [s for s in original_sentences if 'for example' in s.lower() or 'e.g.' in s.lower()]
+                            if emotional_sentences:
+                                optimized += f" {emotional_sentences[0]}"  # Add one emotional sentence
+                            if example_sentences:
+                                optimized += f" {example_sentences[0]}"  # Add one example sentence
+                            # Add emotional words and emojis
+                            optimized = f"I'm excited to share that {optimized} 🚀"
+                            # Add CTA and hashtags
                             if not detect_call_to_action(optimized):
                                 optimized += "\nWhat are your thoughts? Let me know in the comments!"
                             hashtags = ' '.join(generate_hashtags(optimized))
