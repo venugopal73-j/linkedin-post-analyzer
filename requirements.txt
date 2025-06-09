@@ -3,7 +3,7 @@ textblob
 nltk
 vadersentiment
 transformers
-torch
+torch==2.3.1
 rembg
 moviepy==1.0.3
 pillow

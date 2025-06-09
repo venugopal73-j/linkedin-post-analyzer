@@ -189,11 +189,11 @@ if mode == "Optimize LinkedIn Post":
         with tab1:
             st.subheader("Summary")
             if total_score >= 90:
-                st.success(f"Final Quality Score: {total_score}/100")
+                st.success(f"Original Quality Score: {total_score}/100")
             elif total_score >= 75:
-                st.info(f"Final Quality Score: {total_score}/100")
+                st.info(f"Original Quality Score: {total_score}/100")
             else:
-                st.warning(f"Final Quality Score: {total_score}/100")
+                st.warning(f"Original Quality Score: {total_score}/100")
             st.markdown(f"### Virality Prediction: {virality}")
 
         with tab2:
@@ -209,11 +209,12 @@ if mode == "Optimize LinkedIn Post":
             if not detect_call_to_action(post):
                 st.markdown("#### Add a Call-to-Action:")
                 st.code("What are your thoughts on this? Let me know in the comments!")
+            
             @st.cache_resource
             def get_summarizer():
                 try:
                     from transformers import pipeline
-                    # Use a lighter model to reduce memory usage in Streamlit Cloud
+                    # Use t5-small for lightweight summarization in Streamlit Cloud
                     return pipeline("summarization", model="t5-small")
                 except Exception as e:
                     st.error(f"Failed to load summarization model: {e}")
@@ -226,9 +227,24 @@ if mode == "Optimize LinkedIn Post":
                         st.error("Summarization model not available. Please try again later.")
                     else:
                         with st.spinner("Generating optimized version..."):
-                            optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
+                            # Calculate input length to set max_length dynamically
+                            input_length = len(word_tokenize(post))
+                            max_length = max(30, int(input_length * 0.5))  # Aim for 50% of input length
+                            # Add a prompt to guide the model for LinkedIn-style output
+                            prompt = f"Summarize this LinkedIn post while keeping it professional and engaging: {post}"
+                            optimized = summarizer(prompt, max_length=max_length, min_length=30, do_sample=False)[0]['summary_text']
+                            # Post-process to add a CTA and hashtags
+                            if not detect_call_to_action(optimized):
+                                optimized += "\nWhat are your thoughts? Let me know in the comments!"
+                            hashtags = ' '.join(generate_hashtags(optimized))
+                            optimized += f"\n{hashtags}"
+                            # Recalculate score for the optimized version
+                            optimized_score, optimized_details = calculate_score(optimized)
+                            optimized_virality = predict_virality(optimized_score)
                             st.markdown("#### Optimized Version:")
                             st.markdown(optimized)
+                            st.markdown(f"**Optimized Quality Score:** {optimized_score}/100")
+                            st.markdown(f"**Optimized Virality Prediction:** {optimized_virality}")
                             st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
                 except Exception as e:
                     st.error(f"Error during summarization: {e}")
