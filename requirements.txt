@@ -4,7 +4,7 @@ nltk==3.9.1
 vadersentiment==3.3.2
 transformers==4.44.2
 torch==2.5.0
-rembg==2.0.62
+rembg==2.0.61
 moviepy==1.0.3
 pillow==10.4.0
 onnxruntime==1.19.2
