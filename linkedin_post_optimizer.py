@@ -60,7 +60,7 @@ def detect_hashtags_mentions(text):
     return len(hashtags), len(mentions)
 
 def detect_call_to_action(text):
-    ctas = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view']
+    ctas = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view', 'discuss']
     return any(cta in text.lower() for cta in ctas)
 
 def detect_emojis(text):
@@ -79,6 +79,20 @@ def generate_hashtags(post, top_n=3):
     common_words = word_counts.most_common(top_n)
     return ['#' + word for word, _ in common_words]
 
+# Improved deduplication function with a lower threshold
+def is_similar_sentence(sent1, sent2, threshold=0.5):  # Lowered threshold for better matching
+    words1 = set(word_tokenize(sent1.lower()))
+    words2 = set(word_tokenize(sent2.lower()))
+    overlap = len(words1.intersection(words2))
+    avg_len = (len(words1) + len(words2)) / 2
+    return overlap / avg_len > threshold if avg_len > 0 else False
+
+def strip_cta(text):
+    sentences = sent_tokenize(text)
+    cta_keywords = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view', 'discuss']
+    non_cta_sentences = [s for s in sentences if not any(keyword in s.lower() for keyword in cta_keywords)]
+    return ' '.join(non_cta_sentences)
+
 def calculate_score(post):
     readability = flesch_kincaid(post)
     tone = analyze_tone_vader(post)
@@ -90,19 +104,19 @@ def calculate_score(post):
     emotional_appeal = detect_emotional_appeal(post)
 
     spelling_score = max(0, 10 - spelling_issues)
-    # Adjusted ideal length range for AI-optimized posts (150–1000 words)
-    length_score = 10 if 150 <= word_count <= 1000 else max(0, 10 - abs(word_count - 575) / 100)
+    # Adjusted ideal length range for LinkedIn posts (100–800 words)
+    length_score = 10 if 100 <= word_count <= 800 else max(0, 10 - abs(word_count - 450) / 80)
 
     weights = {
-        "readability": 10,
+        "readability": 8,
         "tone": 10,
-        "grammar": 8,  # Reduced weight to balance
-        "length": 8,   # Reduced weight to balance
-        "cta": 15,     # Increased weight to prioritize engagement
-        "hashtags": 15, # Increased weight to prioritize engagement
+        "grammar": 7,
+        "length": 5,   # Reduced weight to be less punitive for short posts
+        "cta": 20,
+        "hashtags": 15,
         "mentions": 5,
-        "emotional": 15, # Increased weight to prioritize engagement
-        "emojis": 10   # Increased weight to prioritize engagement
+        "emotional": 20, # Increased weight to prioritize engagement
+        "emojis": 10
     }
 
     weighted_score = (
@@ -209,7 +223,7 @@ if mode == "Optimize LinkedIn Post":
             st.code(' '.join(suggested_hashtags))
             if not detect_call_to_action(post):
                 st.markdown("#### Add a Call-to-Action:")
-                st.code("What are your thoughts on this? Let me know in the comments!")
+                st.code("What are your thoughts? Let me know in the comments!")
             
             @st.cache_resource
             def get_summarizer():
@@ -228,29 +242,69 @@ if mode == "Optimize LinkedIn Post":
                         st.error("Summarization model not available. Please try again later.")
                     else:
                         with st.spinner("Generating optimized version..."):
-                            # Calculate input length to set max_length dynamically
+                            # Calculate input length
                             input_length = len(word_tokenize(post))
-                            max_length = max(50, int(input_length * 0.8))  # Aim for 80% of input length
-                            min_length = min(50, max_length - 10)  # Ensure a reasonable min_length
-                            # Improved prompt to retain more details
-                            prompt = f"Summarize this LinkedIn post while keeping it professional, engaging, and retaining key details and examples: {post}"
-                            optimized = summarizer(prompt, max_length=max_length, min_length=min_length, do_sample=False)[0]['summary_text']
+                            # Strip CTA from input to avoid duplication in summary
+                            post_without_cta = strip_cta(post)
+                            # Adjust prompt based on input length
+                            if input_length < 150:
+                                # For short posts, expand with context
+                                prompt = (f"Expand this LinkedIn post by adding context, a brief explanation, and an example, while keeping it professional and engaging, and retaining key details: {post_without_cta}")
+                                max_length = max(100, int(input_length * 2))  # Aim to double the length
+                                min_length = min(80, max_length - 20)
+                            else:
+                                # For longer posts, summarize
+                                prompt = (f"Summarize this LinkedIn post while keeping it professional, engaging, and retaining key details and examples: {post_without_cta}")
+                                max_length = max(50, int(input_length * 0.8))
+                                min_length = min(50, max_length - 10)
+                            # Generate optimized text
+                            optimized = summarizer(prompt, max_length=max_length, min_length=min_length, do_sample=False, num_beams=4)[0]['summary_text']
                             # Post-process to enhance content and score
+                            optimized_sentences = sent_tokenize(optimized)
+                            # Add additional context for short posts
+                            if input_length < 150:
+                                context_additions = [
+                                    "This tool leverages advanced NLP techniques to analyze how well your resume aligns with job requirements.",
+                                    "For example, a user recently increased their ATS score from 4 to 8 by adding key terms like 'project management' and 'agile methodology' identified by the calculator.",
+                                    "I’m passionate about helping job seekers navigate the complexities of ATS systems to land their dream roles!"
+                                ]
+                                for addition in context_additions:
+                                    if not any(is_similar_sentence(addition, s) for s in optimized_sentences):
+                                        optimized += f" {addition}"
+                                        optimized_sentences.append(addition)
                             # Restore key sentences with emotional appeal or examples
                             original_sentences = sent_tokenize(post)
                             emotional_sentences = [s for s in original_sentences if any(word in s.lower() for word in ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success'])]
                             example_sentences = [s for s in original_sentences if 'for example' in s.lower() or 'e.g.' in s.lower()]
                             if emotional_sentences:
-                                optimized += f" {emotional_sentences[0]}"  # Add one emotional sentence
+                                emotional_sentence = emotional_sentences[0]
+                                if not any(is_similar_sentence(emotional_sentence, s) for s in optimized_sentences):
+                                    optimized += f" {emotional_sentence}"
+                                    optimized_sentences.append(emotional_sentence)
                             if example_sentences:
-                                optimized += f" {example_sentences[0]}"  # Add one example sentence
-                            # Add emotional words and emojis
-                            optimized = f"I'm excited to share that {optimized} 🚀"
-                            # Add CTA and hashtags
+                                example_sentence = example_sentences[0]
+                                if not any(is_similar_sentence(example_sentence, s) for s in optimized_sentences):
+                                    optimized += f" {example_sentence}"
+                                    optimized_sentences.append(example_sentence)
+                            # Add emotional intro if not already present
+                            emotional_intro = "I'm excited to share that"
+                            if not any(emotional_intro.lower() in s.lower() for s in optimized_sentences):
+                                optimized = f"{emotional_intro} {optimized} 🚀"
+                            # Add CTA if not already present, with varied phrasing
+                            cta_options = [
+                                "What are your thoughts? Let me know in the comments!",
+                                "Let’s discuss in the comments below! What do you think?",
+                                "I’d love to hear your views—share them in the comments!"
+                            ]
                             if not detect_call_to_action(optimized):
-                                optimized += "\nWhat are your thoughts? Let me know in the comments!"
+                                for cta in cta_options:
+                                    if not any(is_similar_sentence(cta, s) for s in sent_tokenize(optimized)):
+                                        optimized += f"\n{cta}"
+                                        break
+                            # Add hashtags if not already present
                             hashtags = ' '.join(generate_hashtags(optimized))
-                            optimized += f"\n{hashtags}"
+                            if not detect_hashtags_mentions(optimized)[0]:
+                                optimized += f"\n{hashtags}"
                             # Recalculate score for the optimized version
                             optimized_score, optimized_details = calculate_score(optimized)
                             optimized_virality = predict_virality(optimized_score)
