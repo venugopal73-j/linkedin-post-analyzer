@@ -5,7 +5,6 @@ vadersentiment
 transformers
 torch
 rembg
-moviepy
+moviepy==1.0.3
 pillow
-sentence-transformers
 onnxruntime
