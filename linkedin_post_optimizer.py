@@ -16,11 +16,15 @@ import io
 from moviepy.editor import ImageClip, AudioFileClip
 import os
 
-# Download required NLTK resources at startup
-nltk.download('punkt')           # Sentence tokenization
-nltk.download('punkt_tab')       # Fixes 'punkt_tab' error
-nltk.download('vader_lexicon')   # For sentiment analysis
-nltk.download('stopwords')       # For keyword extraction
+# Initialize NLTK resources safely
+def initialize_nltk_resources():
+    try:
+        for resource in ['punkt', 'punkt_tab', 'vader_lexicon', 'stopwords']:
+            nltk.download(resource, quiet=True)
+    except Exception as e:
+        st.error(f"Error initializing NLTK resources: {e}")
+
+initialize_nltk_resources()
 
 # Initialize tools
 analyzer = SentimentIntensityAnalyzer()
@@ -207,17 +211,28 @@ if mode == "Optimize LinkedIn Post":
                 st.code("What are your thoughts on this? Let me know in the comments!")
             @st.cache_resource
             def get_summarizer():
-                from transformers import pipeline
-                return pipeline("summarization", model="facebook/bart-large-cnn")
+                try:
+                    from transformers import pipeline
+                    # Use a lighter model to reduce memory usage in Streamlit Cloud
+                    return pipeline("summarization", model="t5-small")
+                except Exception as e:
+                    st.error(f"Failed to load summarization model: {e}")
+                    return None
+
             if st.button("Generate AI-Optimized Version"):
                 try:
                     summarizer = get_summarizer()
-                    optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
-                    st.markdown("#### Optimized Version:")
-                    st.markdown(optimized)
-                    st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+                    if summarizer is None:
+                        st.error("Summarization model not available. Please try again later.")
+                    else:
+                        with st.spinner("Generating optimized version..."):
+                            optimized = summarizer(post, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
+                            st.markdown("#### Optimized Version:")
+                            st.markdown(optimized)
+                            st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
                 except Exception as e:
-                    st.error(f"Error generating rewrite: {e}")
+                    st.error(f"Error during summarization: {e}")
+
     else:
         st.info("Please enter your LinkedIn post above to begin the analysis.")
 
