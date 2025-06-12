@@ -15,6 +15,7 @@ import tomli  # For loading TOML environment variables
 import signal  # For timeout handling (may not work on all platforms)
 import threading  # For alternative timeout mechanism
 import time  # For timing the summarization
+import random  # For randomizing CTA selection
 
 # Load environment variables from streamlit.toml if it exists
 toml_file = "streamlit.toml"
@@ -216,12 +217,15 @@ def manual_optimize(post, post_without_cta):
     if not any(emotional_intro.lower() in s.lower() for s in optimized_sentences):
         optimized = f"{emotional_intro} {optimized} 🌟🎉🚀"
 
-    # Add CTA
+    # Add CTA (randomized)
     cta_options = [
         "What strategies have you used to improve engagement? Let me know in the comments! 💬",
         "Let’s discuss in the comments below! What do you think? 🤔",
-        "I’d love to hear your views—share them in the comments! 👇"
+        "I’d love to hear your views—share them in the comments! 👇",
+        "How do you approach LinkedIn engagement? Share your tips below! 💡",
+        "What’s your take on this? Drop a comment to let me know! 📝"
     ]
+    random.shuffle(cta_options)  # Randomize the list
     if not detect_call_to_action(optimized):
         for cta in cta_options:
             if not any(is_similar_sentence(cta, s) for s in sent_tokenize(optimized)):
@@ -273,7 +277,16 @@ if post.strip():
         st.code(' '.join(suggested_hashtags))
         if not detect_call_to_action(post):
             st.markdown("#### Add a Call-to-Action:")
-            st.code("What are your thoughts? Let me know in the comments!")
+            # Dynamic CTA suggestion
+            cta_suggestions = [
+                "What are your thoughts? Let me know in the comments!",
+                "Let’s discuss in the comments below! What do you think? 🤔",
+                "I’d love to hear your views—share them in the comments! 👇",
+                "How do you approach this? Share your tips below! 💡",
+                "What’s your take on this? Drop a comment to let me know! 📝"
+            ]
+            selected_cta = random.choice(cta_suggestions)  # Randomly select a CTA
+            st.code(selected_cta)
         
         @st.cache_resource
         def get_summarizer():
@@ -379,12 +392,15 @@ if post.strip():
                         emotional_intro = "I'm excited to share that"
                         if not any(emotional_intro.lower() in s.lower() for s in optimized_sentences):
                             optimized = f"{emotional_intro} {optimized} 🌟🎉🚀"
-                        # Add CTA if not already present
+                        # Add CTA if not already present (randomized)
                         cta_options = [
                             "What strategies have you used to beat ATS systems? Let me know in the comments! 💬",
                             "Let’s discuss in the comments below! What do you think? 🤔",
-                            "I’d love to hear your views—share them in the comments! 👇"
+                            "I’d love to hear your views—share them in the comments! 👇",
+                            "How do you optimize your LinkedIn posts? Share your tips below! 💡",
+                            "What’s your take on this tool? Drop a comment to let me know! 📝"
                         ]
+                        random.shuffle(cta_options)  # Randomize the list
                         if not detect_call_to_action(optimized):
                             for cta in cta_options:
                                 if not any(is_similar_sentence(cta, s) for s in sent_tokenize(optimized)):
