@@ -10,6 +10,18 @@ from nltk.corpus import stopwords
 from collections import Counter
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import os
+import tomli  # For loading TOML environment variables
+import signal  # For timeout handling
+
+# Load environment variables from streamlit.toml if it exists
+toml_file = "streamlit.toml"
+if os.path.exists(toml_file):
+    with open(toml_file, "rb") as f:
+        config = tomli.load(f)
+        env_vars = config.get("env", {})
+        for key, value in env_vars.items():
+            os.environ[key] = str(value)
 
 # Initialize NLTK resources safely
 def initialize_nltk_resources():
@@ -23,6 +35,13 @@ initialize_nltk_resources()
 
 # Initialize tools
 analyzer = SentimentIntensityAnalyzer()
+
+# Timeout handler for summarization
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Summarization timed out!")
 
 # Helper Functions for LinkedIn Post Optimization
 def flesch_kincaid(text):
@@ -147,6 +166,48 @@ def predict_virality(score):
     else:
         return "📉 Low engagement unless boosted"
 
+# Fallback optimization if summarization fails
+def manual_optimize(post, post_without_cta):
+    optimized = post_without_cta
+    optimized_sentences = sent_tokenize(optimized)
+    
+    # Add context
+    context_additions = [
+        "This tool leverages advanced NLP techniques to analyze content effectively.",
+        "Did you know? Engaging posts can increase visibility by over 50% on LinkedIn!",
+        "For example, adding a personal touch can make your post more relatable and boost engagement.",
+        "I’m absolutely thrilled to share insights that help professionals grow their presence!",
+        "As someone passionate about career growth, I’ve seen how optimized posts can make a difference."
+    ]
+    for addition in context_additions:
+        if not any(is_similar_sentence(addition, s) for s in optimized_sentences):
+            optimized += f" {addition}"
+            optimized_sentences.append(addition)
+
+    # Add emotional intro
+    emotional_intro = "I'm excited to share that"
+    if not any(emotional_intro.lower() in s.lower() for s in optimized_sentences):
+        optimized = f"{emotional_intro} {optimized} 🌟🎉🚀"
+
+    # Add CTA
+    cta_options = [
+        "What strategies have you used to improve engagement? Let me know in the comments! 💬",
+        "Let’s discuss in the comments below! What do you think? 🤔",
+        "I’d love to hear your views—share them in the comments! 👇"
+    ]
+    if not detect_call_to_action(optimized):
+        for cta in cta_options:
+            if not any(is_similar_sentence(cta, s) for s in sent_tokenize(optimized)):
+                optimized += f"\n{cta}"
+                break
+
+    # Add hashtags
+    hashtags = ' '.join(generate_hashtags(optimized))
+    if not detect_hashtags_mentions(optimized)[0]:
+        optimized += f"\n{hashtags}"
+
+    return optimized
+
 # UI
 st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
 st.title("LinkedIn Post Optimizer")
@@ -190,6 +251,7 @@ if post.strip():
         @st.cache_resource
         def get_summarizer():
             try:
+                st.write("Loading summarization model...")  # Debugging
                 from transformers import pipeline
                 return pipeline("summarization", model="t5-small")
             except Exception as e:
@@ -200,25 +262,45 @@ if post.strip():
             try:
                 summarizer = get_summarizer()
                 if summarizer is None:
-                    st.error("Summarization model not available. Please try again later.")
+                    st.error("Summarization model not available. Using manual optimization instead.")
+                    post_without_cta = strip_cta(post)
+                    optimized = manual_optimize(post, post_without_cta)
                 else:
                     with st.spinner("Generating optimized version..."):
                         # Calculate input length
+                        st.write("Calculating input length...")  # Debugging
                         input_length = len(word_tokenize(post))
                         # Strip CTA from input to avoid duplication
+                        st.write("Stripping CTA...")  # Debugging
                         post_without_cta = strip_cta(post)
                         # Adjust prompt based on input length
                         if input_length < 150:
                             prompt = (f"Expand this LinkedIn post by adding context, a brief explanation, a relevant statistic, and a personal touch, while keeping it professional and engaging, and retaining key details: {post_without_cta}")
-                            max_length = max(200, int(input_length * 4))
-                            min_length = min(150, max_length - 50)
+                            max_length = max(150, int(input_length * 2))  # Reduced
+                            min_length = min(100, max_length - 30)  # Reduced
                         else:
                             prompt = (f"Summarize this LinkedIn post while keeping it professional, engaging, and retaining key details and examples: {post_without_cta}")
                             max_length = max(50, int(input_length * 0.8))
                             min_length = min(50, max_length - 10)
-                        # Generate optimized text
-                        optimized = summarizer(prompt, max_length=max_length, min_length=min_length, do_sample=False, num_beams=4)[0]['summary_text']
+                        
+                        # Set timeout for summarization (60 seconds)
+                        st.write(f"Starting summarization with max_length={max_length}, min_length={min_length}...")  # Debugging
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(60)  # Set timeout to 60 seconds
+                        try:
+                            optimized = summarizer(prompt, max_length=max_length, min_length=min_length, do_sample=False, num_beams=4)[0]['summary_text']
+                            signal.alarm(0)  # Disable alarm
+                        except TimeoutException:
+                            st.error("Summarization took too long (over 60 seconds). Using manual optimization instead.")
+                            optimized = manual_optimize(post, post_without_cta)
+                            signal.alarm(0)  # Disable alarm
+                        except Exception as e:
+                            st.error(f"Error during summarization: {e}. Using manual optimization instead.")
+                            optimized = manual_optimize(post, post_without_cta)
+                            signal.alarm(0)  # Disable alarm
+
                         # Post-process to enhance content and score
+                        st.write("Post-processing optimized text...")  # Debugging
                         optimized_sentences = sent_tokenize(optimized)
                         # Add additional context for short posts
                         if input_length < 150:
@@ -234,6 +316,7 @@ if post.strip():
                                     optimized += f" {addition}"
                                     optimized_sentences.append(addition)
                         # Restore key sentences with emotional appeal or examples
+                        st.write("Restoring emotional and example sentences...")  # Debugging
                         original_sentences = sent_tokenize(post)
                         emotional_sentences = [s for s in original_sentences if any(word in s.lower() for word in ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success'])]
                         example_sentences = [s for s in original_sentences if 'for example' in s.lower() or 'e.g.' in s.lower()]
@@ -266,16 +349,19 @@ if post.strip():
                         hashtags = ' '.join(generate_hashtags(optimized))
                         if not detect_hashtags_mentions(optimized)[0]:
                             optimized += f"\n{hashtags}"
-                        # Recalculate score for the optimized version
-                        optimized_score, optimized_details = calculate_score(optimized)
-                        optimized_virality = predict_virality(optimized_score)
-                        st.markdown("#### Optimized Version:")
-                        st.markdown(optimized)
-                        st.markdown(f"**Optimized Quality Score:** {optimized_score}/100")
-                        st.markdown(f"**Optimized Virality Prediction:** {optimized_virality}")
-                        st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+
+                # Recalculate score for the optimized version
+                st.write("Recalculating score for optimized version...")  # Debugging
+                optimized_score, optimized_details = calculate_score(optimized)
+                optimized_virality = predict_virality(optimized_score)
+                st.markdown("#### Optimized Version:")
+                st.markdown(optimized)
+                st.markdown(f"**Optimized Quality Score:** {optimized_score}/100")
+                st.markdown(f"**Optimized Virality Prediction:** {optimized_virality}")
+                st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
+
             except Exception as e:
-                st.error(f"Error during summarization: {e}")
+                st.error(f"Unexpected error during optimization: {e}")
 
 else:
     st.info("Please enter your LinkedIn post above to begin the analysis.")
