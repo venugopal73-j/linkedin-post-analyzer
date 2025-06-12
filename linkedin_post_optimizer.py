@@ -11,27 +11,20 @@ from collections import Counter
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import os
-import tomli  # For loading TOML environment variables
 import random  # For randomizing CTA selection
 
-# Load environment variables from streamlit.toml if it exists
-toml_file = "streamlit.toml"
-if os.path.exists(toml_file):
-    with open(toml_file, "rb") as f:
-        config = tomli.load(f)
-        env_vars = config.get("env", {})
-        for key, value in env_vars.items():
-            os.environ[key] = str(value)
+# Load environment variables (simplified, since Streamlit Cloud uses UI-set variables)
+# Removed tomli dependency since it's not needed for Streamlit Cloud
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
 
-# Initialize NLTK resources safely
+# Initialize NLTK resources safely (delayed until needed)
 def initialize_nltk_resources():
     try:
         for resource in ['punkt', 'punkt_tab', 'vader_lexicon', 'stopwords']:
             nltk.download(resource, quiet=True)
+        return True
     except Exception as e:
-        st.error(f"Error initializing NLTK resources: {e}")
-
-initialize_nltk_resources()
+        return f"Error initializing NLTK resources: {e}"
 
 # Initialize tools
 analyzer = SentimentIntensityAnalyzer()
@@ -97,7 +90,12 @@ def is_similar_sentence(sent1, sent2, threshold=0.5):
 def strip_cta(text):
     sentences = sent_tokenize(text)
     cta_keywords = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view', 'discuss']
-    non_cta_sentences = [s for s in sentences if not any(keyword in s.lower() for keyword in cta_keywords)]
+    emotional_words = ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success']
+    # Keep sentences with emotional words, even if they contain CTA keywords
+    non_cta_sentences = [
+        s for s in sentences
+        if not (any(keyword in s.lower() for keyword in cta_keywords) and not any(word in s.lower() for word in emotional_words))
+    ]
     return ' '.join(non_cta_sentences)
 
 def calculate_score(post):
@@ -159,12 +157,17 @@ def predict_virality(score):
     else:
         return "📉 Low engagement unless boosted"
 
-# Optimization function (replacing summarization with manual optimization)
+# Optimization function
 def optimize_post(post, post_without_cta):
+    # Check if the post is already optimized (to prevent compounding content)
+    emotional_intro = "I'm excited to share that"
+    if emotional_intro.lower() in post.lower():
+        return post  # Skip optimization if already optimized
+
     optimized = post_without_cta
     optimized_sentences = sent_tokenize(optimized)
     
-    # Add context
+    # Add context (limit to 2 sentences to avoid excessive length)
     context_additions = [
         "This tool leverages advanced NLP techniques to analyze content effectively.",
         "Did you know? Engaging posts can increase visibility by over 50% on LinkedIn!",
@@ -172,13 +175,16 @@ def optimize_post(post, post_without_cta):
         "I’m absolutely thrilled to share insights that help professionals grow their presence!",
         "As someone passionate about career growth, I’ve seen how optimized posts can make a difference."
     ]
+    added_context = 0
     for addition in context_additions:
+        if added_context >= 2:
+            break
         if not any(is_similar_sentence(addition, s) for s in optimized_sentences):
             optimized += f" {addition}"
             optimized_sentences.append(addition)
+            added_context += 1
 
     # Add emotional intro
-    emotional_intro = "I'm excited to share that"
     if not any(emotional_intro.lower() in s.lower() for s in optimized_sentences):
         optimized = f"{emotional_intro} {optimized} 🌟🎉🚀"
 
@@ -202,11 +208,52 @@ def optimize_post(post, post_without_cta):
     if not detect_hashtags_mentions(optimized)[0]:
         optimized += f"\n{hashtags}"
 
+    # Trim to optimal length (target around 340 words for max length score)
+    word_count = len(word_tokenize(optimized))
+    if word_count > 400:  # Slightly above optimal to allow some buffer
+        sentences = sent_tokenize(optimized)
+        trimmed_sentences = []
+        current_word_count = 0
+        for s in sentences:
+            sentence_words = len(word_tokenize(s))
+            if current_word_count + sentence_words <= 340:
+                trimmed_sentences.append(s)
+                current_word_count += sentence_words
+            else:
+                break
+        optimized = ' '.join(trimmed_sentences)
+        # Re-add CTA and hashtags if they were trimmed
+        if not detect_call_to_action(optimized):
+            for cta in cta_options:
+                if not any(is_similar_sentence(cta, s) for s in sent_tokenize(optimized)):
+                    optimized += f"\n{cta}"
+                    break
+        if not detect_hashtags_mentions(optimized)[0]:
+            optimized += f"\n{hashtags}"
+
     return optimized
 
 # UI
 st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
 st.title("LinkedIn Post Optimizer")
+
+# Initialize session state
+if 'nltk_initialized' not in st.session_state:
+    st.session_state.nltk_initialized = False
+    st.session_state.nltk_error = None
+
+# Delay NLTK initialization until the user interacts with the app
+if not st.session_state.nltk_initialized:
+    result = initialize_nltk_resources()
+    if result is True:
+        st.session_state.nltk_initialized = True
+    else:
+        st.session_state.nltk_error = result
+
+# Check for NLTK initialization errors
+if st.session_state.nltk_error:
+    st.error(st.session_state.nltk_error)
+    st.stop()
 
 post = st.text_area(
     "Paste or write your LinkedIn post below...",
@@ -257,7 +304,7 @@ if post.strip():
                 with st.spinner("Generating optimized version..."):
                     # Strip CTA from input to avoid duplication
                     post_without_cta = strip_cta(post)
-                    # Optimize using the manual optimization function
+                    # Optimize the post
                     optimized = optimize_post(post, post_without_cta)
 
                     # Post-process to enhance content (restoring emotional/example sentences)
@@ -283,6 +330,10 @@ if post.strip():
                 st.markdown(optimized)
                 st.markdown(f"**Optimized Quality Score:** {optimized_score}/100")
                 st.markdown(f"**Optimized Virality Prediction:** {optimized_virality}")
+                # Show parameter breakdown for debugging
+                st.markdown("#### Optimized Parameter Breakdown:")
+                for key, value in optimized_details.items():
+                    st.progress(int(value), text=f"{key}: {value}/10")
                 st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
 
             except Exception as e:
