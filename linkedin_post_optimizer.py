@@ -12,7 +12,9 @@ import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import os
 import tomli  # For loading TOML environment variables
-import signal  # For timeout handling
+import signal  # For timeout handling (may not work on all platforms)
+import threading  # For alternative timeout mechanism
+import time  # For timing the summarization
 
 # Load environment variables from streamlit.toml if it exists
 toml_file = "streamlit.toml"
@@ -36,12 +38,37 @@ initialize_nltk_resources()
 # Initialize tools
 analyzer = SentimentIntensityAnalyzer()
 
-# Timeout handler for summarization
+# Timeout handler for summarization (using signal, if supported)
 class TimeoutException(Exception):
     pass
 
 def timeout_handler(signum, frame):
     raise TimeoutException("Summarization timed out!")
+
+# Alternative timeout mechanism using threading
+def run_with_timeout(func, args=(), kwargs=None, timeout_duration=60):
+    if kwargs is None:
+        kwargs = {}
+    
+    result = [None]
+    exception = [None]
+    
+    def target():
+        try:
+            result[0] = func(*args, **kwargs)
+        except Exception as e:
+            exception[0] = e
+    
+    thread = threading.Thread(target=target)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout_duration)
+    
+    if thread.is_alive():
+        raise TimeoutException("Summarization took too long (over 60 seconds).")
+    if exception[0] is not None:
+        raise exception[0]
+    return result[0]
 
 # Helper Functions for LinkedIn Post Optimization
 def flesch_kincaid(text):
@@ -283,21 +310,39 @@ if post.strip():
                             max_length = max(50, int(input_length * 0.8))
                             min_length = min(50, max_length - 10)
                         
-                        # Set timeout for summarization (60 seconds)
+                        # Run summarization with timeout (60 seconds)
                         st.write(f"Starting summarization with max_length={max_length}, min_length={min_length}...")  # Debugging
-                        signal.signal(signal.SIGALRM, timeout_handler)
-                        signal.alarm(60)  # Set timeout to 60 seconds
                         try:
-                            optimized = summarizer(prompt, max_length=max_length, min_length=min_length, do_sample=False, num_beams=4)[0]['summary_text']
-                            signal.alarm(0)  # Disable alarm
-                        except TimeoutException:
-                            st.error("Summarization took too long (over 60 seconds). Using manual optimization instead.")
-                            optimized = manual_optimize(post, post_without_cta)
-                            signal.alarm(0)  # Disable alarm
-                        except Exception as e:
-                            st.error(f"Error during summarization: {e}. Using manual optimization instead.")
-                            optimized = manual_optimize(post, post_without_cta)
-                            signal.alarm(0)  # Disable alarm
+                            # Try using signal-based timeout (may not work on all platforms)
+                            signal.signal(signal.SIGALRM, timeout_handler)
+                            signal.alarm(60)  # Set timeout to 60 seconds
+                            try:
+                                optimized = summarizer(prompt, max_length=max_length, min_length=min_length, do_sample=False, num_beams=4)[0]['summary_text']
+                                signal.alarm(0)  # Disable alarm
+                            except TimeoutException:
+                                st.error("Summarization took too long (over 60 seconds). Using manual optimization instead.")
+                                optimized = manual_optimize(post, post_without_cta)
+                                signal.alarm(0)  # Disable alarm
+                            except Exception as e:
+                                st.error(f"Error during summarization: {e}. Using manual optimization instead.")
+                                optimized = manual_optimize(post, post_without_cta)
+                                signal.alarm(0)  # Disable alarm
+                        except ValueError:
+                            # Signal may not be supported (e.g., on Windows or certain Streamlit Cloud environments)
+                            st.write("Signal-based timeout not supported. Using threading-based timeout instead.")
+                            try:
+                                optimized = run_with_timeout(
+                                    summarizer,
+                                    args=(prompt,),
+                                    kwargs={"max_length": max_length, "min_length": min_length, "do_sample": False, "num_beams": 4},
+                                    timeout_duration=60
+                                )[0]['summary_text']
+                            except TimeoutException:
+                                st.error("Summarization took too long (over 60 seconds). Using manual optimization instead.")
+                                optimized = manual_optimize(post, post_without_cta)
+                            except Exception as e:
+                                st.error(f"Error during summarization: {e}. Using manual optimization instead.")
+                                optimized = manual_optimize(post, post_without_cta)
 
                         # Post-process to enhance content and score
                         st.write("Post-processing optimized text...")  # Debugging
