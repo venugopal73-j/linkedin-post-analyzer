@@ -1,0 +1,39 @@
+# Deployment Instructions for linkedin-post-analyzer
+
+## Environment Settings
+- Environment Variable:
+  - Key: STREAMLIT_SERVER_FILE_WATCHER_TYPE
+  - Value: none
+- Python Version: 3.12 (default as of June 2025)
+
+## Deployment Steps
+1. Update GitHub Repository:
+   - Ensure files: linkedin_post_optimizer.py, requirements.txt
+   - Remove: background_music.mp3, packages.txt (if empty)
+   - Commit and push:
+     git add linkedin_post_optimizer.py requirements.txt
+     git rm background_music.mp3 packages.txt
+     git commit -m "Final deployment setup"
+     git push origin main
+2. Configure Streamlit Cloud:
+   - Log in to Streamlit Cloud
+   - Go to app dashboard (venugopal73-j/linkedin-post-analyzer)
+   - Advanced settings:
+     - Set environment variable: STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
+     - Set Python version: 3.12
+   - Save settings
+3. Redeploy:
+   - Select main branch
+   - Set main file: linkedin_post_optimizer.py
+   - Clear cache in Advanced settings
+   - Redeploy app
+4. Test:
+   - Use a sample post and confirm optimized score is 80/100+
+
+## Python Version
+- Recommended: Python 3.12
+- Reason: Compatible with all dependencies after removing rembg and video features
+
+
+[env]
+STREAMLIT_SERVER_FILE_WATCHER_TYPE = "none"
