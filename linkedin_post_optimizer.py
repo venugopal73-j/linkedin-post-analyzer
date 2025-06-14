@@ -1,5 +1,5 @@
 
-"""LinkedIn Post Optimizer - Streamlit Cloud Version with UI Fixes"""
+"""LinkedIn Post Optimizer - Final Version with Safe NLTK Initialization and Streamlit UI"""
 
 import streamlit as st
 from textblob import TextBlob
@@ -10,20 +10,23 @@ from collections import Counter
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import os
-import random  # For randomizing CTA selection
+import random
 
-# Load environment variables (simplified, since Streamlit Cloud uses UI-set variables)
+# Set environment variable to avoid file watch issues
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
 
-# Initialize NLTK resources
-nltk.download('punkt')
-nltk.download('vader_lexicon')
-nltk.download('stopwords')
+# Safe NLTK resource initialization
+nltk_packages = ["punkt", "vader_lexicon", "stopwords"]
+for pkg in nltk_packages:
+    try:
+        nltk.data.find(f'tokenizers/{pkg}' if pkg == "punkt" else f'corpora/{pkg}')
+    except LookupError:
+        nltk.download(pkg)
 
-# Initialize tools
+# Initialize sentiment analyzer
 analyzer = SentimentIntensityAnalyzer()
 
-# Helper Functions
+# Helper functions
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
@@ -193,7 +196,7 @@ def optimize_post(post, post_without_cta):
 
     return optimized
 
-# ---- Streamlit UI starts here ----
+# ---- Streamlit UI ----
 st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
 st.title("🚀 LinkedIn Post Optimizer")
 st.markdown("Enhance your LinkedIn post for maximum engagement using NLP techniques.")
