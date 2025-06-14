@@ -1,5 +1,5 @@
 
-"""LinkedIn Post Optimizer - Aggressively Purges punkt_tab and Optimizes Intelligently"""
+"""LinkedIn Post Optimizer - No TextBlob Version (No punkt_tab dependency)"""
 
 import os
 import shutil
@@ -31,7 +31,7 @@ def purge_punkt_tab():
 
 purge_punkt_tab()
 
-# 🔇 Safe and quiet NLTK setup
+# 🔇 Quiet NLTK downloads for only valid resources
 import nltk
 required_nltk = {
     "punkt": "tokenizers/punkt",
@@ -44,15 +44,14 @@ for pkg, path in required_nltk.items():
     except LookupError:
         nltk.download(pkg, quiet=True)
 
-# ✅ Now proceed with full application
-from textblob import TextBlob
+# ✅ Main App
+import streamlit as st
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import random
-import streamlit as st
 
 analyzer = SentimentIntensityAnalyzer()
 
@@ -67,12 +66,6 @@ def flesch_kincaid(text):
 
 def analyze_tone_vader(text):
     return analyzer.polarity_scores(text)['compound']
-
-def spelling_check(text):
-    try:
-        return 3 if str(TextBlob(text).correct()) != text else 0
-    except:
-        return 2
 
 def detect_hashtags_mentions(text):
     return len(re.findall(r'#\w+', text)), len(re.findall(r'@\w+', text))
@@ -107,7 +100,6 @@ def strip_cta(text):
 def calculate_score(post):
     readability = flesch_kincaid(post)
     tone = analyze_tone_vader(post)
-    spell = spelling_check(post)
     words = len(word_tokenize(post))
     cta = detect_call_to_action(post)
     hashtags, mentions = detect_hashtags_mentions(post)
@@ -116,13 +108,12 @@ def calculate_score(post):
 
     length_score = 10 if 80 <= words <= 600 else max(0, 10 - abs(words - 340) / 60)
     weights = {
-        "readability": 8, "tone": 10, "grammar": 7, "length": 3,
+        "readability": 8, "tone": 10, "grammar": 0, "length": 3,
         "cta": 20, "hashtags": 15, "mentions": 5, "emotional": 30, "emojis": 15
     }
     score = (
         (readability / 100 * weights["readability"]) +
         ((tone + 1) / 2 * 10 * weights["tone"] / 10) +
-        (max(0, 10 - spell) * weights["grammar"] / 10) +
         (length_score * weights["length"] / 10) +
         (10 * weights["cta"] / 10 if cta else 0) +
         (min(3, hashtags) / 3 * 10 * weights["hashtags"] / 10) +
@@ -133,7 +124,6 @@ def calculate_score(post):
     return round(score), {
         "Readability": readability,
         "Tone & Sentiment": round((tone + 1) * 5),
-        "Grammar & Style": max(0, 10 - spell),
         "Length & Structure": round(length_score, 1),
         "Call-to-Action": 10 if cta else 0,
         "Hashtags": min(10, hashtags * 3.3),
