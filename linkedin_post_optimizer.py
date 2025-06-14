@@ -1,6 +1,5 @@
-"""
-LinkedIn Post Optimizer - Streamlit Cloud Version
-"""
+
+"""LinkedIn Post Optimizer - Streamlit Cloud Version with UI Fixes"""
 
 import streamlit as st
 from textblob import TextBlob
@@ -16,19 +15,15 @@ import random  # For randomizing CTA selection
 # Load environment variables (simplified, since Streamlit Cloud uses UI-set variables)
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
 
-# Initialize NLTK resources safely (delayed until needed)
-def initialize_nltk_resources():
-    try:
-        for resource in ['punkt', 'vader_lexicon', 'stopwords']:
-            nltk.download(resource, quiet=True)
-        return True
-    except Exception as e:
-        return f"Error initializing NLTK resources: {e}"
+# Initialize NLTK resources
+nltk.download('punkt')
+nltk.download('vader_lexicon')
+nltk.download('stopwords')
 
 # Initialize tools
 analyzer = SentimentIntensityAnalyzer()
 
-# Helper Functions for LinkedIn Post Optimization
+# Helper Functions
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
@@ -48,10 +43,10 @@ def spelling_check(text):
         blob = TextBlob(text)
         corrected = str(blob.correct())
         if corrected != text:
-            return 3  # Some issues found
+            return 3
         return 0
     except:
-        return 2  # Unknown error
+        return 2
 
 def detect_hashtags_mentions(text):
     hashtags = re.findall(r'#\w+', text)
@@ -67,7 +62,6 @@ def detect_emojis(text):
 
 def detect_emotional_appeal(text):
     positive_words = ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success']
-    # Tokenize the text to ensure accurate word matching
     words = word_tokenize(text.lower())
     count = sum(1 for word in words if word in positive_words)
     return min(10, count)
@@ -80,7 +74,6 @@ def generate_hashtags(post, top_n=3):
     common_words = word_counts.most_common(top_n)
     return ['#' + word for word, _ in common_words]
 
-# Improved deduplication function
 def is_similar_sentence(sent1, sent2, threshold=0.5):
     words1 = set(word_tokenize(sent1.lower()))
     words2 = set(word_tokenize(sent2.lower()))
@@ -92,7 +85,6 @@ def strip_cta(text):
     sentences = sent_tokenize(text)
     cta_keywords = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view', 'discuss']
     emotional_words = ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success']
-    # Keep sentences with emotional words, even if they contain CTA keywords
     non_cta_sentences = [
         s for s in sentences
         if not (any(keyword in s.lower() for keyword in cta_keywords) and not any(word in s.lower() for word in emotional_words))
@@ -158,17 +150,14 @@ def predict_virality(score):
     else:
         return "Low engagement unless boosted"
 
-# Optimization function
 def optimize_post(post, post_without_cta):
-    # Check if the post is already optimized (to prevent compounding content)
     emotional_intro = "I'm excited to share that"
     if emotional_intro.lower() in post.lower():
-        return post  # Skip optimization if already optimized
+        return post
 
     optimized = post_without_cta
     optimized_sentences = sent_tokenize(optimized)
-    
-    # Add context (limit to 2 sentences to avoid excessive length)
+
     context_additions = [
         "This tool leverages advanced NLP techniques to analyze content effectively.",
         "Did you know? Engaging posts can increase visibility by over 50% on LinkedIn!",
@@ -185,16 +174,13 @@ def optimize_post(post, post_without_cta):
             optimized_sentences.append(addition)
             added_context += 1
 
-    # Add emotional intro
     if not any(emotional_intro.lower() in s.lower() for s in optimized_sentences):
         optimized = f"{emotional_intro} {optimized}"
 
-    # Add mentions
     mentions = "@Streamlit @Python"
-    if not detect_hashtags_mentions(optimized)[1]:  # If no mentions exist
+    if not detect_hashtags_mentions(optimized)[1]:
         optimized += f" Built with tools like {mentions}."
 
-    # Add CTA (randomized)
     cta_options = [
         "What strategies have you used to improve engagement? Let me know in the comments!",
         "Let’s discuss in the comments below! What do you think?",
@@ -202,4 +188,41 @@ def optimize_post(post, post_without_cta):
         "How do you approach LinkedIn engagement? Share your tips below!",
         "What’s your take on this? Drop a comment to let me know!"
     ]
-    random.shuffle(cta_options)  # Randomize the list
+    random.shuffle(cta_options)
+    optimized += f" {cta_options[0]}"
+
+    return optimized
+
+# ---- Streamlit UI starts here ----
+st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
+st.title("🚀 LinkedIn Post Optimizer")
+st.markdown("Enhance your LinkedIn post for maximum engagement using NLP techniques.")
+
+post = st.text_area("✍️ Paste your LinkedIn post here:", height=250)
+
+if st.button("🔍 Analyze and Optimize"):
+    if not post.strip():
+        st.warning("Please enter some text to analyze.")
+    else:
+        original_post = post
+        cleaned_post = strip_cta(post)
+        optimized = optimize_post(original_post, cleaned_post)
+        score, breakdown = calculate_score(original_post)
+        virality = predict_virality(score)
+        hashtags = generate_hashtags(original_post)
+
+        st.subheader("📊 Score Summary")
+        st.metric("Engagement Score", f"{score} / 100")
+        st.write("**Virality Prediction:**", virality)
+
+        st.subheader("🔍 Breakdown")
+        for k, v in breakdown.items():
+            st.write(f"- **{k}:** {v}/10")
+
+        st.subheader("🎯 Optimized Post")
+        st.code(optimized, language="markdown")
+
+        st.subheader("🏷️ Suggested Hashtags")
+        st.write(" ".join(hashtags))
+
+        st.success("Optimization complete!")
