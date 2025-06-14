@@ -1,6 +1,16 @@
 """LinkedIn Post Optimizer - Final Version with Safe NLTK Initialization and Streamlit UI"""
 
-import streamlit as st
+import streamlit as st # Import streamlit first
+
+# ---- Streamlit UI Config ----
+# This MUST be the first Streamlit command executed.
+st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
+
+# Set environment variable to avoid file watch issues
+import os
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
+
+# Now import other libraries
 from textblob import TextBlob
 import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
@@ -8,15 +18,11 @@ from nltk.corpus import stopwords
 from collections import Counter
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-import os
 import random
-
-# Set environment variable to avoid file watch issues
-os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
 
 # Safe NLTK resource initialization
 # Added 'punkt_tab' to ensure it's downloaded if needed.
-nltk_packages = ["punkt", "vader_lexicon", "stopwords", "punkt_tab"] 
+nltk_packages = ["punkt", "vader_lexicon", "stopwords", "punkt_tab"]
 for pkg in nltk_packages:
     try:
         # Adjusted to correctly check for 'punkt_tab' as a tokenizer resource.
@@ -25,10 +31,10 @@ for pkg in nltk_packages:
         else:
             nltk.data.find(f'corpora/{pkg}')
     except LookupError:
+        # These st. calls are now after st.set_page_config
         st.info(f"Downloading NLTK package: {pkg}. This may take a moment...")
         nltk.download(pkg)
         st.success(f"NLTK package '{pkg}' downloaded successfully.")
-
 
 # Initialize sentiment analyzer
 analyzer = SentimentIntensityAnalyzer()
@@ -203,8 +209,7 @@ def optimize_post(post, post_without_cta):
 
     return optimized
 
-# ---- Streamlit UI ----
-st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
+# ---- Streamlit UI Elements ----
 st.title("🚀 LinkedIn Post Optimizer")
 st.markdown("Enhance your LinkedIn post for maximum engagement using NLP techniques.")
 
