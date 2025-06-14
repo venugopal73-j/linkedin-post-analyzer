@@ -1,4 +1,3 @@
-
 """LinkedIn Post Optimizer - Final Version with Safe NLTK Initialization and Streamlit UI"""
 
 import streamlit as st
@@ -16,12 +15,20 @@ import random
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
 
 # Safe NLTK resource initialization
-nltk_packages = ["punkt", "vader_lexicon", "stopwords"]
+# Added 'punkt_tab' to ensure it's downloaded if needed.
+nltk_packages = ["punkt", "vader_lexicon", "stopwords", "punkt_tab"] 
 for pkg in nltk_packages:
     try:
-        nltk.data.find(f'tokenizers/{pkg}' if pkg == "punkt" else f'corpora/{pkg}')
+        # Adjusted to correctly check for 'punkt_tab' as a tokenizer resource.
+        if pkg in ["punkt", "punkt_tab"]:
+            nltk.data.find(f'tokenizers/{pkg}')
+        else:
+            nltk.data.find(f'corpora/{pkg}')
     except LookupError:
+        st.info(f"Downloading NLTK package: {pkg}. This may take a moment...")
         nltk.download(pkg)
+        st.success(f"NLTK package '{pkg}' downloaded successfully.")
+
 
 # Initialize sentiment analyzer
 analyzer = SentimentIntensityAnalyzer()
