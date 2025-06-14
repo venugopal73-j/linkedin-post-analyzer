@@ -1,38 +1,61 @@
-"""LinkedIn Post Optimizer - Final Clean Version with punkt_tab fix and smarter optimization"""
 
-import streamlit as st
-from textblob import TextBlob
-import nltk
-from nltk.tokenize import sent_tokenize, word_tokenize
-from nltk.corpus import stopwords
-from collections import Counter
-import re
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+"""LinkedIn Post Optimizer - Aggressively Purges punkt_tab and Optimizes Intelligently"""
+
 import os
-import random
 import shutil
+import sys
 
-# 🔒 Remove bogus punkt_tab directory if it exists
-for path in nltk.data.path:
-    bogus_path = os.path.join(path, "tokenizers", "punkt_tab")
-    if os.path.exists(bogus_path):
-        shutil.rmtree(bogus_path)
+# 🔒 Aggressive purge of any bogus 'punkt_tab' directories
+def purge_punkt_tab():
+    for path in sys.path:
+        try:
+            target = os.path.join(path, "nltk_data", "tokenizers", "punkt_tab")
+            if os.path.exists(target):
+                shutil.rmtree(target)
+        except Exception:
+            pass
 
-# 🔇 Download valid NLTK resources quietly
+    for data_path in [
+        "/home/appuser/nltk_data",
+        "/usr/share/nltk_data",
+        "/usr/local/share/nltk_data",
+        "/usr/lib/nltk_data",
+        "/usr/local/lib/nltk_data"
+    ]:
+        try:
+            target = os.path.join(data_path, "tokenizers", "punkt_tab")
+            if os.path.exists(target):
+                shutil.rmtree(target)
+        except Exception:
+            pass
+
+purge_punkt_tab()
+
+# 🔇 Safe and quiet NLTK setup
+import nltk
 required_nltk = {
     "punkt": "tokenizers/punkt",
     "stopwords": "corpora/stopwords",
     "vader_lexicon": "sentiment/vader_lexicon"
 }
-for pkg, resource_path in required_nltk.items():
+for pkg, path in required_nltk.items():
     try:
-        nltk.data.find(resource_path)
+        nltk.data.find(path)
     except LookupError:
         nltk.download(pkg, quiet=True)
 
+# ✅ Now proceed with full application
+from textblob import TextBlob
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
+from collections import Counter
+import re
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import random
+import streamlit as st
+
 analyzer = SentimentIntensityAnalyzer()
 
-# --- NLP Functions ---
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
@@ -155,7 +178,7 @@ def optimize_post(post, post_wo_cta):
     optimized += " " + ctas[0]
     return optimized
 
-# --- Streamlit App ---
+# --- Streamlit App UI ---
 st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
 st.title("🚀 LinkedIn Post Optimizer")
 st.markdown("Enhance your LinkedIn post using NLP-powered suggestions.")
