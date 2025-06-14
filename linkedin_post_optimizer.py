@@ -19,7 +19,7 @@ os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SER
 # Initialize NLTK resources safely (delayed until needed)
 def initialize_nltk_resources():
     try:
-        for resource in ['punkt', 'punkt_tab', 'vader_lexicon', 'stopwords']:
+        for resource in ['punkt', 'vader_lexicon', 'stopwords']:
             nltk.download(resource, quiet=True)
         return True
     except Exception as e:
@@ -150,13 +150,13 @@ def calculate_score(post):
 
 def predict_virality(score):
     if score >= 90:
-        return "🔥 Likely to go viral"
+        return "Likely to go viral"
     elif score >= 75:
-        return "📈 High engagement potential"
+        return "High engagement potential"
     elif score >= 60:
-        return "👍 Moderate engagement"
+        return "Moderate engagement"
     else:
-        return "📉 Low engagement unless boosted"
+        return "Low engagement unless boosted"
 
 # Optimization function
 def optimize_post(post, post_without_cta):
@@ -187,7 +187,7 @@ def optimize_post(post, post_without_cta):
 
     # Add emotional intro
     if not any(emotional_intro.lower() in s.lower() for s in optimized_sentences):
-        optimized = f"{emotional_intro} {optimized} 🌟🎉🚀"
+        optimized = f"{emotional_intro} {optimized}"
 
     # Add mentions
     mentions = "@Streamlit @Python"
@@ -196,156 +196,10 @@ def optimize_post(post, post_without_cta):
 
     # Add CTA (randomized)
     cta_options = [
-        "What strategies have you used to improve engagement? Let me know in the comments! 💬",
-        "Let’s discuss in the comments below! What do you think? 🤔",
-        "I’d love to hear your views—share them in the comments! 👇",
-        "How do you approach LinkedIn engagement? Share your tips below! 💡",
-        "What’s your take on this? Drop a comment to let me know! 📝"
+        "What strategies have you used to improve engagement? Let me know in the comments!",
+        "Let’s discuss in the comments below! What do you think?",
+        "I’d love to hear your views—share them in the comments!",
+        "How do you approach LinkedIn engagement? Share your tips below!",
+        "What’s your take on this? Drop a comment to let me know!"
     ]
     random.shuffle(cta_options)  # Randomize the list
-    if not detect_call_to_action(optimized):
-        for cta in cta_options:
-            if not any(is_similar_sentence(cta, s) for s in sent_tokenize(optimized)):
-                optimized += f"\n{cta}"
-                break
-
-    # Add hashtags
-    hashtags = ' '.join(generate_hashtags(optimized))
-    if not detect_hashtags_mentions(optimized)[0]:
-        optimized += f"\n{hashtags}"
-
-    # Trim to optimal length (target around 340 words for max length score)
-    word_count = len(word_tokenize(optimized))
-    if word_count > 400:  # Slightly above optimal to allow some buffer
-        sentences = sent_tokenize(optimized)
-        trimmed_sentences = []
-        current_word_count = 0
-        for s in sentences:
-            sentence_words = len(word_tokenize(s))
-            if current_word_count + sentence_words <= 340:
-                trimmed_sentences.append(s)
-                current_word_count += sentence_words
-            else:
-                break
-        optimized = ' '.join(trimmed_sentences)
-        # Re-add CTA, mentions, and hashtags if they were trimmed
-        if not detect_hashtags_mentions(optimized)[1]:
-            optimized += f" Built with tools like {mentions}."
-        if not detect_call_to_action(optimized):
-            for cta in cta_options:
-                if not any(is_similar_sentence(cta, s) for s in sent_tokenize(optimized)):
-                    optimized += f"\n{cta}"
-                    break
-        if not detect_hashtags_mentions(optimized)[0]:
-            optimized += f"\n{hashtags}"
-
-    return optimized
-
-# UI
-st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
-st.title("LinkedIn Post Optimizer")
-
-# Initialize session state
-if 'nltk_initialized' not in st.session_state:
-    st.session_state.nltk_initialized = False
-    st.session_state.nltk_error = None
-
-# Delay NLTK initialization until the user interacts with the app
-if not st.session_state.nltk_initialized:
-    result = initialize_nltk_resources()
-    if result is True:
-        st.session_state.nltk_initialized = True
-    else:
-        st.session_state.nltk_error = result
-
-# Check for NLTK initialization errors
-if st.session_state.nltk_error:
-    st.error(st.session_state.nltk_error)
-    st.stop()
-
-post = st.text_area(
-    "Paste or write your LinkedIn post below...",
-    height=300,
-    placeholder="Type or paste your LinkedIn post here..."
-)
-
-if post.strip():
-    total_score, details = calculate_score(post)
-    virality = predict_virality(total_score)
-
-    tab1, tab2, tab3 = st.tabs(["Overview", "Metrics", "Suggestions"])
-
-    with tab1:
-        st.subheader("Summary")
-        if total_score >= 90:
-            st.success(f"Original Quality Score: {total_score}/100")
-        elif total_score >= 75:
-            st.info(f"Original Quality Score: {total_score}/100")
-        else:
-            st.warning(f"Original Quality Score: {total_score}/100")
-        st.markdown(f"### Virality Prediction: {virality}")
-
-    with tab2:
-        st.subheader("Parameter Breakdown")
-        for key, value in details.items():
-            st.progress(int(value), text=f"{key}: {value}/10")
-
-    with tab3:
-        st.subheader("Optimization Suggestions")
-        suggested_hashtags = generate_hashtags(post)
-        st.markdown("#### Suggested Hashtags:")
-        st.code(' '.join(suggested_hashtags))
-        if not detect_call_to_action(post):
-            st.markdown("#### Add a Call-to-Action:")
-            cta_suggestions = [
-                "What are your thoughts? Let me know in the comments!",
-                "Let’s discuss in the comments below! What do you think? 🤔",
-                "I’d love to hear your views—share them in the comments! 👇",
-                "How do you approach this? Share your tips below! 💡",
-                "What’s your take on this? Drop a comment to let me know! 📝"
-            ]
-            selected_cta = random.choice(cta_suggestions)  # Randomly select a CTA
-            st.code(selected_cta)
-        
-        if st.button("Generate AI-Optimized Version"):
-            try:
-                with st.spinner("Generating optimized version..."):
-                    # Strip CTA from input to avoid duplication
-                    post_without_cta = strip_cta(post)
-                    # Optimize the post
-                    optimized = optimize_post(post, post_without_cta)
-
-                    # Post-process to enhance content (restoring emotional/example sentences)
-                    optimized_sentences = sent_tokenize(optimized)
-                    original_sentences = sent_tokenize(post)
-                    emotional_sentences = [s for s in original_sentences if any(word in s.lower() for word in ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success'])]
-                    example_sentences = [s for s in original_sentences if 'for example' in s.lower() or 'e.g.' in s.lower()]
-                    if emotional_sentences:
-                        emotional_sentence = emotional_sentences[0]
-                        if not any(is_similar_sentence(emotional_sentence, s) for s in optimized_sentences):
-                            optimized += f" {emotional_sentence}"
-                            optimized_sentences.append(emotional_sentence)
-                    if example_sentences:
-                        example_sentence = example_sentences[0]
-                        if not any(is_similar_sentence(example_sentence, s) for s in optimized_sentences):
-                            optimized += f" {example_sentence}"
-                            optimized_sentences.append(example_sentence)
-
-                # Recalculate score for the optimized version
-                optimized_score, optimized_details = calculate_score(optimized)
-                optimized_virality = predict_virality(optimized_score)
-                st.markdown("#### Optimized Version:")
-                st.markdown(optimized)
-                st.markdown(f"**Optimized Quality Score:** {optimized_score}/100")
-                st.markdown(f"**Optimized Virality Prediction:** {optimized_virality}")
-                # Show parameter breakdown for debugging
-                st.markdown("#### Optimized Parameter Breakdown:")
-                for key, value in optimized_details.items():
-                    st.progress(int(value), text=f"{key}: {value}/10")
-                st.download_button("Download Optimized Version", data=optimized, file_name="optimized_linkedin_post.txt")
-
-            except Exception as e:
-                st.error(f"Unexpected error during optimization: {e}")
-
-else:
-    st.info("Please enter your LinkedIn post above to begin the analysis.")
