@@ -1,37 +1,19 @@
 
-"""LinkedIn Post Optimizer - No TextBlob Version (No punkt_tab dependency)"""
+"""LinkedIn Post Optimizer - Monkey Patch Version to Block punkt_tab Lookup"""
 
-import os
-import shutil
-import sys
+# 🚫 Monkey-patch nltk to block 'punkt_tab' once and for all
+import nltk.data
 
-# 🔒 Aggressive purge of any bogus 'punkt_tab' directories
-def purge_punkt_tab():
-    for path in sys.path:
-        try:
-            target = os.path.join(path, "nltk_data", "tokenizers", "punkt_tab")
-            if os.path.exists(target):
-                shutil.rmtree(target)
-        except Exception:
-            pass
+_original_find = nltk.data.find
 
-    for data_path in [
-        "/home/appuser/nltk_data",
-        "/usr/share/nltk_data",
-        "/usr/local/share/nltk_data",
-        "/usr/lib/nltk_data",
-        "/usr/local/lib/nltk_data"
-    ]:
-        try:
-            target = os.path.join(data_path, "tokenizers", "punkt_tab")
-            if os.path.exists(target):
-                shutil.rmtree(target)
-        except Exception:
-            pass
+def patched_find(resource_name, *args, **kwargs):
+    if "punkt_tab" in resource_name:
+        raise LookupError("Blocked access to deprecated resource: punkt_tab")
+    return _original_find(resource_name, *args, **kwargs)
 
-purge_punkt_tab()
+nltk.data.find = patched_find
 
-# 🔇 Quiet NLTK downloads for only valid resources
+# 🔇 NLTK resource setup
 import nltk
 required_nltk = {
     "punkt": "tokenizers/punkt",
@@ -44,7 +26,7 @@ for pkg, path in required_nltk.items():
     except LookupError:
         nltk.download(pkg, quiet=True)
 
-# ✅ Main App
+# ✅ Streamlit App
 import streamlit as st
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
@@ -108,7 +90,7 @@ def calculate_score(post):
 
     length_score = 10 if 80 <= words <= 600 else max(0, 10 - abs(words - 340) / 60)
     weights = {
-        "readability": 8, "tone": 10, "grammar": 0, "length": 3,
+        "readability": 8, "tone": 10, "length": 3,
         "cta": 20, "hashtags": 15, "mentions": 5, "emotional": 30, "emojis": 15
     }
     score = (
