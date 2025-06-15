@@ -1,33 +1,18 @@
+"""LinkedIn Post Optimizer - Final Version with Safe NLTK Initialization and Streamlit UI"""
 
-"""LinkedIn Post Optimizer - Monkey Patch Version to Block punkt_tab Lookup"""
+import streamlit as st # Import streamlit first
 
-# 🚫 Monkey-patch nltk to block 'punkt_tab' once and for all
-import nltk.data
+# ---- Streamlit UI Config ----
+# This MUST be the first Streamlit command executed.
+st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
 
-_original_find = nltk.data.find
+# Set environment variable to avoid file watch issues
+import os
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = os.environ.get("STREAMLIT_SERVER_FILE_WATCHER_TYPE", "none")
 
-def patched_find(resource_name, *args, **kwargs):
-    if "punkt_tab" in resource_name:
-        raise LookupError("Blocked access to deprecated resource: punkt_tab")
-    return _original_find(resource_name, *args, **kwargs)
-
-nltk.data.find = patched_find
-
-# 🔇 NLTK resource setup
+# Now import other necessary libraries
+from textblob import TextBlob # Re-added for spelling check
 import nltk
-required_nltk = {
-    "punkt": "tokenizers/punkt",
-    "stopwords": "corpora/stopwords",
-    "vader_lexicon": "sentiment/vader_lexicon"
-}
-for pkg, path in required_nltk.items():
-    try:
-        nltk.data.find(path)
-    except LookupError:
-        nltk.download(pkg, quiet=True)
-
-# ✅ Streamlit App
-import streamlit as st
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
@@ -35,150 +20,244 @@ import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import random
 
+# Safe NLTK resource initialization
+# Included 'punkt_tab' for comprehensive NLTK punkt tokenizer data.
+nltk_packages = ["punkt", "vader_lexicon", "stopwords", "punkt_tab"]
+for pkg in nltk_packages:
+    try:
+        # Check for 'punkt' and 'punkt_tab' within 'tokenizers', others in 'corpora' or 'sentiment'
+        if pkg in ["punkt", "punkt_tab"]:
+            nltk.data.find(f'tokenizers/{pkg}')
+        elif pkg == "vader_lexicon":
+            nltk.data.find(f'sentiment/{pkg}')
+        else:
+            nltk.data.find(f'corpora/{pkg}')
+    except LookupError:
+        # These st. calls are now after st.set_page_config and will display messages in Streamlit
+        st.info(f"Downloading NLTK package: {pkg}. This may take a moment...")
+        nltk.download(pkg)
+        st.success(f"NLTK package '{pkg}' downloaded successfully.")
+
+
+# Initialize sentiment analyzer
 analyzer = SentimentIntensityAnalyzer()
 
+# Helper functions
 def flesch_kincaid(text):
     words = len(word_tokenize(text))
     sentences = len(sent_tokenize(text))
     if sentences == 0 or words == 0:
         return 0
-    avg = words / sentences
-    syllables = sum(sum(1 for c in word if c in 'aeiou') for word in word_tokenize(text.lower()))
-    return round(max(0, min(100, 206.835 - 1.015 * avg - 84.6 * (syllables / words))))
+    avg_words_per_sentence = words / sentences
+    # Simplified syllable counting for demonstration, actual NLTK tools are more robust
+    syllables = sum([sum(1 for c in word if c.lower() in 'aeiou') for word in word_tokenize(text)])
+    score = round(206.835 - 1.015 * avg_words_per_sentence - 84.6 * (syllables / words))
+    return max(0, min(100, score))
 
 def analyze_tone_vader(text):
-    return analyzer.polarity_scores(text)['compound']
+    vs = analyzer.polarity_scores(text)
+    return vs['compound']
+
+def spelling_check(text):
+    # Re-implemented spelling check using TextBlob
+    try:
+        blob = TextBlob(text)
+        corrected = str(blob.correct())
+        if corrected != text:
+            return 3 # Indicate some spelling issues
+        return 0 # No spelling issues
+    except Exception as e:
+        # Handle cases where TextBlob might fail (e.g., very short text, non-standard characters)
+        st.warning(f"Spelling check encountered an issue: {e}. Assuming no issues for scoring.")
+        return 2 # A neutral score if check cannot be performed
 
 def detect_hashtags_mentions(text):
-    return len(re.findall(r'#\w+', text)), len(re.findall(r'@\w+', text))
+    hashtags = re.findall(r'#\w+', text)
+    mentions = re.findall(r'@\w+', text)
+    return len(hashtags), len(mentions)
 
 def detect_call_to_action(text):
     ctas = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view', 'discuss']
     return any(cta in text.lower() for cta in ctas)
 
 def detect_emojis(text):
+    # A simple regex to detect a broad range of non-alphanumeric, non-whitespace characters
+    # which often include emojis. This is a basic approximation.
     return len(re.findall(r'[^\w\s,.!?]', text))
 
 def detect_emotional_appeal(text):
-    emotion_words = ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success']
-    return min(10, sum(1 for w in word_tokenize(text.lower()) if w in emotion_words))
+    positive_words = ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success']
+    words = word_tokenize(text.lower())
+    count = sum(1 for word in words if word in positive_words)
+    return min(10, count) # Cap at 10 for scoring purposes
 
-def generate_hashtags(text, top_n=3):
-    words = [w for w in word_tokenize(text.lower()) if w.isalpha()]
+def generate_hashtags(post, top_n=3):
+    words = nltk.word_tokenize(post.lower())
     stop_words = set(stopwords.words('english'))
-    words = [w for w in words if w not in stop_words]
-    freq = Counter(words)
-    return ['#' + w for w, _ in freq.most_common(top_n)]
+    filtered_words = [word for word in words if word.isalpha() and word not in stop_words]
+    word_counts = Counter(filtered_words)
+    common_words = word_counts.most_common(top_n)
+    return ['#' + word for word, _ in common_words]
 
-def is_similar_sentence(s1, s2, threshold=0.5):
-    w1, w2 = set(word_tokenize(s1.lower())), set(word_tokenize(s2.lower()))
-    return len(w1 & w2) / ((len(w1) + len(w2)) / 2) > threshold if w1 and w2 else False
+def is_similar_sentence(sent1, sent2, threshold=0.5):
+    words1 = set(word_tokenize(sent1.lower()))
+    words2 = set(word_tokenize(sent2.lower()))
+    overlap = len(words1.intersection(words2))
+    avg_len = (len(words1) + len(words2)) / 2
+    return overlap / avg_len > threshold if avg_len > 0 else False
 
 def strip_cta(text):
-    cta = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view', 'discuss']
-    emotion = ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success']
-    return ' '.join([s for s in sent_tokenize(text) if not (any(c in s.lower() for c in cta) and not any(e in s.lower() for e in emotion))])
+    sentences = sent_tokenize(text)
+    cta_keywords = ['comment', 'let me know', 'thoughts?', 'what do you think', 'share your view', 'discuss']
+    emotional_words = ['inspiring', 'amazing', 'excited', 'thrilled', 'proud', 'success'] # Used to prevent stripping sentences that are both CTA and emotional
+    non_cta_sentences = [
+        s for s in sentences
+        if not (any(keyword in s.lower() for keyword in cta_keywords) and not any(word in s.lower() for word in emotional_words))
+    ]
+    return ' '.join(non_cta_sentences)
 
 def calculate_score(post):
     readability = flesch_kincaid(post)
     tone = analyze_tone_vader(post)
-    words = len(word_tokenize(post))
+    spelling_issues = spelling_check(post) # Used the restored spelling_check
+    word_count = len(word_tokenize(post))
     cta = detect_call_to_action(post)
     hashtags, mentions = detect_hashtags_mentions(post)
     emojis = detect_emojis(post)
-    emotion = detect_emotional_appeal(post)
+    emotional_appeal = detect_emotional_appeal(post)
 
-    length_score = 10 if 80 <= words <= 600 else max(0, 10 - abs(words - 340) / 60)
+    spelling_score = max(0, 10 - spelling_issues) # Calculation based on spelling_issues
+    length_score = 10 if 80 <= word_count <= 600 else max(0, 10 - abs(word_count - 340) / 60)
+
     weights = {
-        "readability": 8, "tone": 10, "length": 3,
-        "cta": 20, "hashtags": 15, "mentions": 5, "emotional": 30, "emojis": 15
+        "readability": 8,
+        "tone": 10,
+        "grammar": 7, # Weight for grammar/spelling
+        "length": 3,
+        "cta": 20,
+        "hashtags": 15,
+        "mentions": 5,
+        "emotional": 30,
+        "emojis": 15
     }
-    score = (
+
+    weighted_score = (
         (readability / 100 * weights["readability"]) +
         ((tone + 1) / 2 * 10 * weights["tone"] / 10) +
+        (spelling_score * weights["grammar"] / 10) + # Included grammar/spelling in score calculation
         (length_score * weights["length"] / 10) +
         (10 * weights["cta"] / 10 if cta else 0) +
         (min(3, hashtags) / 3 * 10 * weights["hashtags"] / 10) +
         (min(2, mentions) / 2 * 10 * weights["mentions"] / 10) +
-        (emotion * weights["emotional"] / 10) +
+        (emotional_appeal * weights["emotional"] / 10) +
         (min(5, emojis) / 5 * 10 * weights["emojis"] / 10)
     )
-    return round(score), {
+
+    return round(weighted_score), {
         "Readability": readability,
-        "Tone & Sentiment": round((tone + 1) * 5),
-        "Length & Structure": round(length_score, 1),
+        "Tone & Sentiment": round((tone + 1) / 2 * 10),
+        "Grammar & Style": spelling_score, # Included in breakdown
+        "Length & Structure": length_score,
         "Call-to-Action": 10 if cta else 0,
         "Hashtags": min(10, hashtags * 3.3),
         "Mentions": min(5, mentions * 2.5),
-        "Emotional Appeal": emotion,
-        "Engagement Hooks": min(5, emojis)
+        "Emotional Appeal": emotional_appeal,
+        "Engagement Hooks": min(5, emojis * 1.0)
     }
 
 def predict_virality(score):
-    if score >= 90: return "Likely to go viral"
-    if score >= 75: return "High engagement potential"
-    if score >= 60: return "Moderate engagement"
-    return "Low engagement unless boosted"
+    if score >= 90:
+        return "Likely to go viral"
+    elif score >= 75:
+        return "High engagement potential"
+    elif score >= 60:
+        return "Moderate engagement"
+    else:
+        return "Low engagement unless boosted"
 
-def optimize_post(post, post_wo_cta):
-    optimized = post_wo_cta
-    sentences = sent_tokenize(optimized)
-    additions = [
+def optimize_post(post, post_without_cta):
+    emotional_intro_options = [
+        "I'm excited to share that",
+        "Thrilled to announce that",
+        "Proud to present",
+        "Delighted to share",
+        "Big news!"
+    ]
+    
+    # Check if any emotional intro is already present in the original post
+    if any(intro.lower() in post.lower() for intro in emotional_intro_options):
+        return post # If already emotional, don't change the intro
+
+    optimized = post_without_cta
+    optimized_sentences = sent_tokenize(optimized)
+
+    context_additions = [
         "This tool leverages advanced NLP techniques to analyze content effectively.",
         "Did you know? Engaging posts can increase visibility by over 50% on LinkedIn!",
-        "Adding a personal touch makes posts more relatable and boosts engagement."
+        "For example, adding a personal touch can make your post more relatable and boost engagement.",
+        "I’m absolutely thrilled to share insights that help professionals grow their presence!",
+        "As someone passionate about career growth, I’ve seen how optimized posts can make a difference."
     ]
-    for a in additions:
-        if not any(is_similar_sentence(a, s) for s in sentences):
-            optimized += " " + a
-            if additions.index(a) >= 1: break
+    added_context = 0
+    # Add up to 2 unique context additions
+    for addition in context_additions:
+        if added_context >= 2:
+            break
+        if not any(is_similar_sentence(addition, s) for s in optimized_sentences):
+            optimized += f" {addition}"
+            optimized_sentences.append(addition)
+            added_context += 1
 
-    first_sentence = sent_tokenize(post.strip())[0].lower()
-    emotional = ['excited', 'thrilled', 'proud', 'amazing', 'pumped', 'delighted', 'grateful']
-    if not any(word in first_sentence for word in emotional):
-        optimized = f"I'm excited to share that {optimized}"
+    # Add an emotional intro if one isn't already present
+    if not any(intro.lower() in optimized.lower() for intro in emotional_intro_options):
+        optimized = f"{random.choice(emotional_intro_options)} {optimized}"
 
-    if detect_hashtags_mentions(optimized)[1] == 0:
-        optimized += " Built with tools like @Streamlit @Python."
+    mentions = "@Streamlit @Python"
+    # Add mentions if none are detected
+    if not detect_hashtags_mentions(optimized)[1]:
+        optimized += f" Built with tools like {mentions}."
 
-    ctas = [
+    cta_options = [
         "What strategies have you used to improve engagement? Let me know in the comments!",
         "Let’s discuss in the comments below! What do you think?",
-        "I’d love to hear your views—share them in the comments!"
+        "I’d love to hear your views—share them in the comments!",
+        "How do you approach LinkedIn engagement? Share your tips below!",
+        "What’s your take on this? Drop a comment to let me know!"
     ]
-    random.shuffle(ctas)
-    optimized += " " + ctas[0]
+    random.shuffle(cta_options)
+    optimized += f" {cta_options[0]}"
+
     return optimized
 
-# --- Streamlit App UI ---
-st.set_page_config(page_title="LinkedIn Post Optimizer", layout="centered")
+# ---- Streamlit App UI ----
 st.title("🚀 LinkedIn Post Optimizer")
-st.markdown("Enhance your LinkedIn post using NLP-powered suggestions.")
+st.markdown("Enhance your LinkedIn post for maximum engagement using NLP techniques.")
 
 post = st.text_area("✍️ Paste your LinkedIn post here:", height=250)
 
 if st.button("🔍 Analyze and Optimize"):
     if not post.strip():
-        st.warning("Please enter some text.")
+        st.warning("Please enter some text to analyze.")
     else:
-        cleaned = strip_cta(post)
-        optimized = optimize_post(post, cleaned)
-        score, breakdown = calculate_score(post)
+        original_post = post
+        cleaned_post = strip_cta(post)
+        optimized = optimize_post(original_post, cleaned_post)
+        score, breakdown = calculate_score(original_post)
         virality = predict_virality(score)
-        hashtags = generate_hashtags(post)
+        hashtags = generate_hashtags(original_post)
 
-        st.subheader("📊 Engagement Score")
-        st.metric("Score", f"{score} / 100")
-        st.caption(f"📈 {virality}")
+        st.subheader("📊 Score Summary")
+        st.metric("Engagement Score", f"{score} / 100")
+        st.write("**Virality Prediction:**", virality)
 
-        st.subheader("📍 Breakdown")
+        st.subheader("🔍 Breakdown")
         for k, v in breakdown.items():
-            st.markdown(f"- **{k}**: {v}/10")
+            st.write(f"- **{k}:** {v}/10")
 
-        st.subheader("✅ Optimized Post")
+        st.subheader("🎯 Optimized Post")
         st.code(optimized, language="markdown")
 
         st.subheader("🏷️ Suggested Hashtags")
-        st.markdown(" ".join(hashtags))
+        st.write(" ".join(hashtags))
 
-        st.success("Post optimized successfully!")
+        st.success("Optimization complete!")
