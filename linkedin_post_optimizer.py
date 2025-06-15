@@ -33,10 +33,9 @@ for pkg in nltk_packages:
         else:
             nltk.data.find(f'corpora/{pkg}')
     except LookupError:
-        # These st. calls are now after st.set_page_config and will display messages in Streamlit
-        st.info(f"Downloading NLTK package: {pkg}. This may take a moment...")
-        nltk.download(pkg)
-        st.success(f"NLTK package '{pkg}' downloaded successfully.")
+        # Removed st.info and st.success calls to prevent printing download messages.
+        # Use quiet=True to suppress NLTK's own download messages.
+        nltk.download(pkg, quiet=True)
 
 
 # Initialize sentiment analyzer
